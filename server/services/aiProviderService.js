@@ -6,13 +6,13 @@ const { OpenAI } = require("openai");
  */
 class AIProviderService {
   constructor() {
-    this.defaultModel = process.env.CEREBRAS_MODEL || "llama-3.3-70b";
+    this.defaultModel = process.env.CEREBRAS_MODEL || "gpt-oss-120b";
   }
 
   getCerebrasModel(requestedModel) {
-    if (requestedModel && requestedModel.includes("mini")) return "llama3.1-8b";
-    if (requestedModel && requestedModel.includes("o1")) return "llama-3.3-70b";
-    return process.env.CEREBRAS_MODEL || "llama-3.3-70b";
+    if (requestedModel && requestedModel.includes("mini")) return "gemma-4-31b";
+    if (requestedModel && requestedModel.includes("o1")) return "gpt-oss-120b";
+    return process.env.CEREBRAS_MODEL || "gpt-oss-120b";
   }
 
   /**
