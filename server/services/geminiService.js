@@ -32,9 +32,14 @@ class GeminiService {
       const genAI = new GoogleGenerativeAI(apiKey);
       const targetModel = this.getGeminiModelName(model);
 
-      const modelsToTry = [targetModel, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"].filter(
-        (v, i, a) => a.indexOf(v) === i
-      );
+      const modelsToTry = [
+        targetModel,
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-flash-latest",
+        "gemini-2.5-flash-lite",
+        "gemini-pro-latest"
+      ].filter((v, i, a) => a.indexOf(v) === i);
 
       const cleanedHistory = [];
       let expectedRole = "user";
@@ -70,7 +75,7 @@ class GeminiService {
           const response = await result.response;
           const text = response.text();
           if (text && text.trim() !== "") {
-            console.log("[Chat] Gemini response received");
+            console.log(`[Chat] Gemini response received from model '${mName}'`);
             console.log(`[Chat] Response length: ${text.length}`);
             return text;
           }
@@ -78,18 +83,21 @@ class GeminiService {
           lastErr = err;
           const status = err.status || err.statusCode;
           if (status === 429 || err.message?.includes("429") || err.message?.includes("quota")) {
-            console.warn("[Gemini] Rate limit / quota reached:", err.message);
-            if (typeof fallbackFn !== "function") {
-              throw new Error("VEXIS PRO is temporarily unable to process the request. Please try again shortly.");
-            }
+            console.warn(`[Gemini] Model '${mName}' rate limit notice:`, err.message);
+          } else if (status === 401 || status === 403 || err.message?.includes("API key")) {
+            console.warn(`[Gemini] Model '${mName}' auth notice:`, err.message);
+          } else {
+            console.warn(`[Gemini] Model '${mName}' notice:`, err.message);
           }
-          if (status === 401 || status === 403 || err.message?.includes("API key")) {
-            console.warn("[Gemini] Authentication error:", err.message);
-            if (typeof fallbackFn !== "function") {
-              throw new Error("VEXIS PRO couldn't connect to Gemini. Please check API key configuration.");
-            }
+        }
+      }
+
+      if (lastErr) {
+        const msg = lastErr.message || "";
+        if (msg.includes("503") || msg.includes("high demand") || msg.includes("quota") || msg.includes("429")) {
+          if (typeof fallbackFn !== "function") {
+            throw new Error("VEXIS PRO is temporarily unable to process the request due to Google API demand. Please try again shortly.");
           }
-          console.warn(`[Gemini] Model '${mName}' notice:`, err.message);
         }
       }
     } else {
