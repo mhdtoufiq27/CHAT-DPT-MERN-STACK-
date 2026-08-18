@@ -6,101 +6,115 @@ const { OpenAI } = require("openai");
  */
 class AIProviderService {
   constructor() {
-    this.defaultModel = process.env.CEREBRAS_MODEL || "gpt-oss-120b";
+    this.defaultModel = process.env.CEREBRAS_MODEL || "llama-3.3-70b";
   }
 
   getCerebrasModel(requestedModel) {
-    if (requestedModel && requestedModel.includes("mini")) return "gemma-4-31b";
-    if (requestedModel && requestedModel.includes("o1")) return "gpt-oss-120b";
-    return process.env.CEREBRAS_MODEL || "gpt-oss-120b";
+    if (requestedModel && requestedModel.includes("mini")) return "llama3.1-8b";
+    if (requestedModel && requestedModel.includes("o1")) return "llama-3.3-70b";
+    return process.env.CEREBRAS_MODEL || "llama-3.3-70b";
   }
 
   /**
-   * Generate complete response via Cerebras Cloud API
+   * Generate complete response via Cerebras Cloud API with multi-model failover cascade
    */
   async generateResponse({ content, model, history, systemInstruction, temperature, finalPrompt, fallbackFn }) {
     const cerebrasKey = process.env.CEREBRAS_API_KEY;
 
     if (cerebrasKey && cerebrasKey.trim() !== "") {
-      try {
-        const cerebras = new OpenAI({
-          apiKey: cerebrasKey,
-          baseURL: "https://api.cerebras.ai/v1",
-        });
-        const targetModel = this.getCerebrasModel(model);
+      const cerebras = new OpenAI({
+        apiKey: cerebrasKey,
+        baseURL: "https://api.cerebras.ai/v1",
+      });
 
-        const formattedMessages = [
-          { role: "system", content: systemInstruction },
-          ...history.map((h) => ({
-            role: h.role === "model" ? "assistant" : h.role,
-            content: h.content,
-          })),
-          { role: "user", content: finalPrompt },
-        ];
+      const primaryModel = this.getCerebrasModel(model);
+      const modelsToTry = [primaryModel, "llama-3.3-70b", "llama3.1-8b", "llama3.1-70b", "gpt-oss-120b", "gemma-4-31b"].filter(
+        (v, i, a) => a.indexOf(v) === i
+      );
 
-        const completion = await cerebras.chat.completions.create({
-          model: targetModel,
-          messages: formattedMessages,
-          temperature,
-        });
+      const formattedMessages = [
+        { role: "system", content: systemInstruction },
+        ...history.map((h) => ({
+          role: h.role === "model" ? "assistant" : h.role,
+          content: h.content,
+        })),
+        { role: "user", content: finalPrompt },
+      ];
 
-        const text = completion.choices[0]?.message?.content;
-        if (text && text.trim() !== "") {
-          return text;
+      for (const mName of modelsToTry) {
+        try {
+          const completion = await cerebras.chat.completions.create({
+            model: mName,
+            messages: formattedMessages,
+            temperature,
+          });
+
+          const text = completion.choices[0]?.message?.content;
+          if (text && text.trim() !== "") {
+            console.log(`[VEXIS PRO Cerebras Engine] Response generated successfully using model '${mName}'`);
+            return text;
+          }
+        } catch (err) {
+          console.warn(`[VEXIS PRO Cerebras Engine] Model '${mName}' notice (${err.status || err.code || 'API_ERR'}): ${err.message}`);
         }
-      } catch (err) {
-        console.warn(`[VEXIS PRO Cerebras Engine] Notice (${err.status || err.code || 'API_ERR'}): ${err.message}`);
       }
     }
 
-    // Fallback to Dynamic Smart AI Engine if Cerebras key is empty or rate-limited
+    // Fallback to Dynamic Smart AI Engine if Cerebras models are exhausted
     return fallbackFn(finalPrompt, model, [], false, history);
   }
 
   /**
-   * Stream response tokens via Cerebras Cloud SSE Stream
+   * Stream response tokens via Cerebras Cloud SSE Stream with multi-model failover cascade
    */
   async generateStream({ content, model, history, systemInstruction, temperature, finalPrompt, res, isAbortedFn, fallbackFn }) {
     const cerebrasKey = process.env.CEREBRAS_API_KEY;
 
     if (cerebrasKey && cerebrasKey.trim() !== "") {
-      try {
-        const cerebras = new OpenAI({
-          apiKey: cerebrasKey,
-          baseURL: "https://api.cerebras.ai/v1",
-        });
-        const targetModel = this.getCerebrasModel(model);
+      const cerebras = new OpenAI({
+        apiKey: cerebrasKey,
+        baseURL: "https://api.cerebras.ai/v1",
+      });
 
-        const formattedMessages = [
-          { role: "system", content: systemInstruction },
-          ...history.map((h) => ({
-            role: h.role === "model" ? "assistant" : h.role,
-            content: h.content,
-          })),
-          { role: "user", content: finalPrompt },
-        ];
+      const primaryModel = this.getCerebrasModel(model);
+      const modelsToTry = [primaryModel, "llama-3.3-70b", "llama3.1-8b", "llama3.1-70b", "gpt-oss-120b", "gemma-4-31b"].filter(
+        (v, i, a) => a.indexOf(v) === i
+      );
 
-        const stream = await cerebras.chat.completions.create({
-          model: targetModel,
-          messages: formattedMessages,
-          temperature,
-          stream: true,
-        });
+      const formattedMessages = [
+        { role: "system", content: systemInstruction },
+        ...history.map((h) => ({
+          role: h.role === "model" ? "assistant" : h.role,
+          content: h.content,
+        })),
+        { role: "user", content: finalPrompt },
+      ];
 
-        let fullText = "";
-        for await (const chunk of stream) {
-          if (isAbortedFn()) break;
-          const delta = chunk.choices[0]?.delta?.content || "";
-          if (delta) {
-            fullText += delta;
-            res.write(`data: ${JSON.stringify({ chunk: delta })}\n\n`);
+      for (const mName of modelsToTry) {
+        try {
+          const stream = await cerebras.chat.completions.create({
+            model: mName,
+            messages: formattedMessages,
+            temperature,
+            stream: true,
+          });
+
+          let fullText = "";
+          for await (const chunk of stream) {
+            if (isAbortedFn()) break;
+            const delta = chunk.choices[0]?.delta?.content || "";
+            if (delta) {
+              fullText += delta;
+              res.write(`data: ${JSON.stringify({ chunk: delta })}\n\n`);
+            }
           }
+          if (fullText && fullText.trim() !== "") {
+            console.log(`[VEXIS PRO Cerebras Stream Engine] Stream completed using model '${mName}'`);
+            return fullText;
+          }
+        } catch (err) {
+          console.warn(`[VEXIS PRO Cerebras Stream Engine] Model '${mName}' notice (${err.status || err.code || 'API_ERR'}): ${err.message}`);
         }
-        if (fullText && fullText.trim() !== "") {
-          return fullText;
-        }
-      } catch (err) {
-        console.warn(`[VEXIS PRO Cerebras Stream Engine] Notice (${err.status || err.code || 'API_ERR'}): ${err.message}`);
       }
     }
 

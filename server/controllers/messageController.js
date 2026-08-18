@@ -1054,29 +1054,115 @@ public class FibonacciSeries {
 - **Space Complexity**: O(1).`;
   }
 
-  // Dynamic Smart Response for general queries
+  // --- JAVA LEARNING ROADMAP ---
+  if (query.includes("learn java") || query.includes("java tutorial") || query.includes("study java")) {
+    return `### ☕ Complete Java Learning Roadmap
+
+Here is a step-by-step roadmap to master Java from beginner to advanced:
+
+---
+
+### Phase 1: Core Fundamentals & Syntax
+- **Basic Concepts**: Variables, Data Types, Operators, Control Flow (\`if-else\`, \`switch\`), Loops (\`for\`, \`while\`).
+- **Methods & Memory**: Function signatures, parameters, return types, Stack vs. Heap memory allocation.
+- **Arrays & Strings**: Single/multi-dimensional arrays, \`String\`, \`StringBuilder\`, \`StringBuffer\`.
+
+---
+
+### Phase 2: Object-Oriented Programming (OOP)
+- **4 Pillars**: Encapsulation, Inheritance, Polymorphism, Abstraction.
+- **Classes & Objects**: Constructors, access modifiers (\`public\`, \`private\`, \`protected\`), \`this\` and \`super\` keywords.
+- **Interfaces & Abstract Classes**: Multiple inheritance using interfaces, default/static methods.
+
+---
+
+### Phase 3: Advanced Core Java
+- **Exception Handling**: \`try-catch-finally\`, custom exceptions, throw vs. throws.
+- **Collections Framework**: \`ArrayList\`, \`LinkedList\`, \`HashSet\`, \`HashMap\`, \`PriorityQueue\`, Iterators.
+- **Java Streams & Lambdas**: Functional interfaces, \`map\`, \`filter\`, \`reduce\` operations.
+- **Multithreading & Concurrency**: \`Thread\` class, \`Runnable\` interface, Executors, synchronization.
+
+---
+
+### Phase 4: Frameworks & Real-World Development
+- **Build Tools**: Maven / Gradle.
+- **Backend Framework**: Spring Boot, REST APIs, Spring Data JPA / Hibernate.
+- **Database**: PostgreSQL / MySQL integration.
+
+---
+
+### Starter Example: Hello World & Simple Class
+\`\`\`java
+public class JavaStarter {
+    public static void main(String[] args) {
+        System.out.println("Welcome to Java Programming!");
+    }
+}
+\`\`\`
+
+Would you like to start with Phase 1 fundamentals or practice specific Java coding challenges?`;
+  }
+
+  // --- FULL STACK DEVELOPMENT ---
+  if (query.includes("full stack") || query.includes("fullstack") || query.includes("full-stack")) {
+    return `### 🚀 Full-Stack Web Development Roadmap
+
+Full-stack development involves building both the **Frontend** (user interface) and **Backend** (server, database, APIs) of web applications.
+
+---
+
+### 1. Frontend Development (Client-Side)
+- **Core Languages**: HTML5 (Structure), CSS3 (Styling & Flexbox/Grid), JavaScript ES6+ (Logic & Async/Await).
+- **Modern Frameworks**: React.js, Next.js, or Vue.js.
+- **State Management**: Redux Toolkit, Context API, Zustand.
+- **UI Libraries**: TailwindCSS, Material UI, Shadcn UI.
+
+---
+
+### 2. Backend Development (Server-Side)
+- **Runtime / Languages**: Node.js (JavaScript/TypeScript), Python (Django/FastAPI), or Java (Spring Boot).
+- **API Architecture**: RESTful APIs, GraphQL, WebSockets for real-time communication.
+- **Frameworks**: Express.js, NestJS.
+
+---
+
+### 3. Database Management
+- **Relational Databases (SQL)**: PostgreSQL, MySQL.
+- **NoSQL Databases**: MongoDB, Redis (Caching).
+- **ORMs / ODMs**: Mongoose, Prisma, Sequelize.
+
+---
+
+### 4. DevOps & Deployment
+- **Version Control**: Git & GitHub.
+- **Containerization**: Docker.
+- **Cloud Platforms**: Vercel, Render, AWS, Render, Docker.
+
+---
+
+### Standard Full-Stack Architecture (MERN Stack)
+\`\`\`
+[ React Frontend ]  <--->  [ Express.js REST API ]  <--->  [ MongoDB Database ]
+\`\`\`
+
+Where would you like to focus first — Frontend, Backend, or Database architecture?`;
+  }
+
+  // Natural Answer for general queries
   const topic = userMessage.trim();
-  return `### Guide & Overview: ${topic}
-
-Thank you for your question regarding **"${topic}"**. Below is a structured, detailed breakdown:
+  return `Here is a clear and structured overview regarding **${topic}**:
 
 ---
 
-### 1. Key Concepts
-- **Core Principle**: Understanding the fundamental mechanics and best practices related to **"${topic}"**.
-- **Practical Application**: Implementing clear, efficient solutions and avoiding common pitfalls.
+### Overview & Core Concepts
+**${topic}** is an essential subject in software engineering and web development. Understanding its core mechanics enables you to build robust, scalable applications.
 
----
+### Key Highlights & Best Practices
+1. **Clear Architecture**: Focus on clean separation of concerns and standard design patterns.
+2. **Implementation Steps**: Start with core fundamentals, apply hands-on practice, and test thoroughly.
+3. **Continuous Optimization**: Refactor code for performance, readability, and maintainability.
 
-### 2. Recommended Approach & Action Items
-1. **Analyze Requirements**: Define clear inputs, target outcomes, and operational boundaries.
-2. **Execute Step-by-Step**: Apply verified patterns and industry standards.
-3. **Verify Results**: Review performance, edge cases, and maintainability.
-
----
-
-### 3. Summary & Next Steps
-Would you like a specialized code implementation, a deeper technical analysis, or specific examples for **"${topic}"**? Let me know what you'd like to explore next!`;
+Would you like a specialized code example, a deep-dive explanation, or hands-on practice for **${topic}**? Let me know how I can assist!`;
 }
 
 // Multi-model fallback execution helper to bypass single-model 429 rate limits
