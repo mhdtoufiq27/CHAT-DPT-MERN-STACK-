@@ -35,9 +35,9 @@ class GeminiService {
       const modelsToTry = [
         targetModel,
         "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
         "gemini-2.5-pro",
         "gemini-flash-latest",
-        "gemini-2.5-flash-lite",
         "gemini-pro-latest"
       ].filter((v, i, a) => a.indexOf(v) === i);
 
