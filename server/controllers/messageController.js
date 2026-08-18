@@ -976,7 +976,7 @@ const sendMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
         const codeAnalysis = analyzeCodingPrompt(content);
         const generationConfig = {
@@ -1115,7 +1115,7 @@ const streamMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
         const codeAnalysis = analyzeCodingPrompt(content);
         const generationConfig = {
@@ -1225,7 +1225,7 @@ const regenerateMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
         const codeAnalysis = analyzeCodingPrompt(promptText);
         const generationConfig = {
@@ -1314,7 +1314,7 @@ const editUserMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
         const codeAnalysis = analyzeCodingPrompt(newContent);
         const generationConfig = {
