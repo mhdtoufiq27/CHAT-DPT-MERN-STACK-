@@ -1220,7 +1220,7 @@ const streamMessage = async (req, res) => {
       memoryMessages.set(chatId, msgs);
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, message: assistantMsgDoc })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, userMessage: userMsgDoc, assistantMessage: assistantMsgDoc, message: assistantMsgDoc })}\n\n`);
     res.end();
   } catch (error) {
     console.error("streamMessage Error:", error);

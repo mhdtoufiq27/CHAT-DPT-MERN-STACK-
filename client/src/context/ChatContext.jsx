@@ -352,7 +352,7 @@ export function ChatProvider({ children }) {
                 setStreamingText(accumulatedText);
               } else if (data.done) {
                 finalUserMsg = data.userMessage;
-                finalAssistantMsg = data.assistantMessage;
+                finalAssistantMsg = data.assistantMessage || data.message;
               }
             } catch (pErr) {
               console.warn("SSE Parse notice:", pErr.message);
