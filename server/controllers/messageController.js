@@ -991,12 +991,19 @@ const sendMessage = async (req, res) => {
           generationConfig,
         });
 
-        // Format history for Gemini API
+        // Format history cleanly for Gemini API to ensure strictly alternating roles
+        const cleanedHistory = [];
+        let expectedRole = "user";
+        for (const h of history) {
+          const role = h.role === "assistant" ? "model" : "user";
+          if (role === expectedRole && h.content && h.content.trim() !== "") {
+            cleanedHistory.push({ role, parts: [{ text: h.content }] });
+            expectedRole = role === "user" ? "model" : "user";
+          }
+        }
+
         const formattedContents = [
-          ...history.map((h) => ({
-            role: h.role === "assistant" ? "model" : h.role,
-            parts: [{ text: h.content }],
-          })),
+          ...cleanedHistory,
           { role: "user", parts: [{ text: finalPrompt }] },
         ];
 
@@ -1130,31 +1137,49 @@ const streamMessage = async (req, res) => {
           generationConfig,
         });
 
+        // Clean history to ensure strict alternating user/model roles
+        const cleanedHistory = [];
+        let expectedRole = "user";
+        for (const h of history) {
+          const role = h.role === "assistant" ? "model" : "user";
+          if (role === expectedRole && h.content && h.content.trim() !== "") {
+            cleanedHistory.push({ role, parts: [{ text: h.content }] });
+            expectedRole = role === "user" ? "model" : "user";
+          }
+        }
+
         const formattedContents = [
-          ...history.map((h) => ({
-            role: h.role === "assistant" ? "model" : h.role,
-            parts: [{ text: h.content }],
-          })),
+          ...cleanedHistory,
           { role: "user", parts: [{ text: finalPrompt }] },
         ];
 
-        const resultStream = await aiModel.generateContentStream({ contents: formattedContents });
-
-        for await (const chunk of resultStream.stream) {
-          if (isAborted) break;
-          const chunkText = chunk.text();
-          fullReply += chunkText;
-          res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+        let replyText = "";
+        try {
+          const result = await aiModel.generateContent({ contents: formattedContents });
+          const response = await result.response;
+          replyText = response.text();
+        } catch (apiErr) {
+          console.warn("Gemini API error, using smart fallback:", apiErr.message);
+          replyText = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
         }
-      } catch (streamErr) {
-        console.warn("Gemini stream fallback active:", streamErr.message);
+
+        fullReply = replyText;
+        const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
+        for (let i = 0; i < fullReply.length; i += chunkSize) {
+          if (isAborted) break;
+          const part = fullReply.substring(i, i + chunkSize);
+          res.write(`data: ${JSON.stringify({ chunk: part })}\n\n`);
+          await new Promise((r) => setTimeout(r, 15));
+        }
+      } catch (outerErr) {
+        console.warn("Outer Gemini error, using smart fallback:", outerErr.message);
         fullReply = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
         const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
         for (let i = 0; i < fullReply.length; i += chunkSize) {
           if (isAborted) break;
           const part = fullReply.substring(i, i + chunkSize);
           res.write(`data: ${JSON.stringify({ chunk: part })}\n\n`);
-          await new Promise((r) => setTimeout(r, 25));
+          await new Promise((r) => setTimeout(r, 15));
         }
       }
     } else {
