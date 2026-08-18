@@ -20,6 +20,130 @@ Core Guidelines:
 4. Multi-Turn Context & Memory: Maintain context across messages (e.g. remember user name, preferences, previously mentioned code/topics).
 5. Personalized Responses: Use stored user preferences naturally without explicitly citing the memory database unless asked.`;
 
+// Reliable Code Request Detection & Requirement Extraction Helper
+function analyzeCodingPrompt(prompt) {
+  if (!prompt || typeof prompt !== "string") return { isCodeRequest: false, detectedLanguage: "General", constraints: [] };
+
+  const p = prompt.toLowerCase();
+  const hasCodeKeyword = /(write|create|build|generate|implement|code|program|function|script|class|method|algorithm|fix|debug|refactor|sql|query|schema|api|component|react|node|express|python|java|javascript|typescript|c\+\+|cpp|c#|golang|rust|html|css|mongodb|mongoose|postgresql|mysql)/i.test(prompt);
+
+  if (!hasCodeKeyword) return { isCodeRequest: false, detectedLanguage: "General", constraints: [] };
+
+  let detectedLanguage = "General";
+  if (/\b(java|jdk|spring|junit)\b/i.test(p) && !/\b(javascript|java script|js)\b/i.test(p)) {
+    detectedLanguage = "Java";
+  } else if (/\b(python|py|django|flask|fastapi|pandas|numpy)\b/i.test(p)) {
+    detectedLanguage = "Python";
+  } else if (/\b(sql|mysql|postgres|postgresql|sqlite|oracle|t-sql|queries|query|select|insert|update|delete|join|group by|having)\b/i.test(p)) {
+    detectedLanguage = "SQL";
+  } else if (/\b(react|jsx|tsx|component|useeffect|usestate)\b/i.test(p)) {
+    detectedLanguage = "React";
+  } else if (/\b(node|express|backend api|rest api)\b/i.test(p)) {
+    detectedLanguage = "Node.js/Express";
+  } else if (/\b(typescript|ts)\b/i.test(p)) {
+    detectedLanguage = "TypeScript";
+  } else if (/\b(javascript|js|es6)\b/i.test(p)) {
+    detectedLanguage = "JavaScript";
+  } else if (/\b(c\+\+|cpp)\b/i.test(p)) {
+    detectedLanguage = "C++";
+  } else if (/\b(c#|\.net|dotnet)\b/i.test(p)) {
+    detectedLanguage = "C#";
+  } else if (/\b(mongodb|mongoose)\b/i.test(p)) {
+    detectedLanguage = "MongoDB";
+  } else if (/\b(html|css|tailwind)\b/i.test(p)) {
+    detectedLanguage = "HTML/CSS";
+  }
+
+  const constraints = [];
+  if (p.includes("without sorting") || p.includes("no sort") || p.includes("do not sort") || p.includes("don't sort")) {
+    constraints.push("DO NOT SORT the array/collection (must solve in O(N) single/double pass)");
+  }
+  if (p.includes("recursion") || p.includes("recursive")) {
+    constraints.push("MUST USE RECURSION (must include a base case and recursive call)");
+  }
+  if (p.includes("window function") || p.includes("dense_rank") || p.includes("row_number")) {
+    constraints.push("MUST USE SQL WINDOW FUNCTION (e.g. DENSE_RANK() or ROW_NUMBER())");
+  }
+  if (p.includes("without built-in") || p.includes("no built-in") || p.includes("without library")) {
+    constraints.push("DO NOT USE built-in sorting or helper libraries; implement custom logic");
+  }
+  if (p.includes("complete program") || p.includes("standalone") || p.includes("executable") || detectedLanguage === "Java") {
+    constraints.push("MUST PROVIDE A COMPLETE EXECUTABLE PROGRAM (including class, main method/entrypoint, and imports)");
+  }
+
+  return {
+    isCodeRequest: true,
+    detectedLanguage,
+    constraints,
+  };
+}
+
+// Build Dynamic System Instruction with Strict Coding Directives
+function buildSystemInstruction(userMessage) {
+  const analysis = analyzeCodingPrompt(userMessage);
+
+  if (!analysis.isCodeRequest) {
+    return SYSTEM_INSTRUCTION;
+  }
+
+  let constraintText = "";
+  if (analysis.constraints.length > 0) {
+    constraintText = `\n\n[USER EXPLICIT CONSTRAINTS FOR THIS REQUEST]:\n` + analysis.constraints.map((c) => `- ${c}`).join("\n");
+  }
+
+  return `${SYSTEM_INSTRUCTION}
+
+==================================================
+CRITICAL VEXIS PRO CODE GENERATION DIRECTIVES
+==================================================
+
+1. LANGUAGE LOCK:
+   - Requested Language/Framework: "${analysis.detectedLanguage}".
+   - You MUST write the solution strictly using ${analysis.detectedLanguage}.
+   - Never replace ${analysis.detectedLanguage} with another programming language unless explicitly instructed.
+
+2. REQUIREMENT EXTRACTION & NO PROBLEM ALTERATION:
+   - Carefully analyze the requested problem and explicit user constraints before generating code.${constraintText}
+   - Satisfy ALL explicit constraints strictly. Never solve a different problem or modify the user's intended logic.
+
+3. COMPLETE & EXECUTABLE CODE REQUIREMENT:
+   - For standalone languages (Java, Python, C++, C#), return a COMPLETE program with all required imports, class declarations, main entrypoint, and sample execution code so it can be copied and compiled/run immediately.
+   - For web apps/components (React, Express, HTML/CSS), return complete functional code.
+
+4. INPUT/OUTPUT & EDGE CASE VALIDATION:
+   - Respect user-provided input/output formats exactly.
+   - Internally check edge cases: empty arrays/strings, single element, zero/negative numbers, duplicate values, null/undefined states.
+
+5. CODE + EXPLANATION CONSISTENCY:
+   - The explanation MUST accurately describe the code that was actually generated. Do not explain algorithms (like sorting or two pointers) unless the code actually uses them.
+
+6. DEBUGGING & MODIFICATION MODES:
+   - If user asks "What's wrong?", first explain the error cause, then provide corrected code preserving their intended approach.
+   - If user asks "Add X to this code", modify their provided code directly; do not invent an unrelated application.
+
+7. VERIFICATION CLAIMS POLICY:
+   - Do NOT state "Code tested successfully in runtime environment" unless executed in a live sandbox. Use "This solution is logically verified and ready to execute."
+
+8. CODING RESPONSE FORMAT:
+   ### Solution
+   Short overview.
+
+   ### Code
+   \`\`\`${analysis.detectedLanguage.toLowerCase()}
+   // Clean code
+   \`\`\`
+
+   ### How It Works
+   Step-by-step breakdown.
+
+   ### Complexity
+   Time: O(...) | Space: O(...)
+
+   ### Example
+   Sample Input & Output.
+`;
+}
+
 // Automatic Memory Extraction Helper
 async function extractAndStoreMemories(prompt, req) {
   if (!prompt || typeof prompt !== "string") return;
@@ -72,12 +196,11 @@ async function getUserMemoriesText(req) {
   return "\n\n[User Remembered Context & Preferences]:\n" + memories.map((m) => `- ${m.key}: ${m.value}`).join("\n");
 }
 
-
 // Automatic Chat Title Generator
 function generateChatTitle(firstPrompt) {
   if (!firstPrompt || typeof firstPrompt !== "string") return "New chat";
   const clean = firstPrompt.trim().replace(/^["']|["']$/g, "");
-  
+
   if (clean.toLowerCase().includes("mongodb") && clean.toLowerCase().includes("node")) {
     return "MongoDB + Node.js Connection";
   }
@@ -96,12 +219,12 @@ function generateChatTitle(firstPrompt) {
   return words.length < clean.length ? words + "..." : words;
 }
 
-// Multi-turn aware intelligent offline AI responder engine for ChatDPT
+// Multi-turn aware intelligent offline AI responder engine for VEXIS PRO
 function generateSmartAIResponse(userMessage, model = "chatdpt-4o", attachments = [], webSearch = false, history = []) {
   const query = userMessage.toLowerCase().trim();
 
   // Multi-turn context memory lookup in history
-  const historyText = history.map(h => `${h.role}: ${h.content}`).join("\n").toLowerCase();
+  const historyText = history.map((h) => `${h.role}: ${h.content}`).join("\n").toLowerCase();
 
   // Check if user previously mentioned their name
   const nameMatch = historyText.match(/(?:my name is|i am|call me)\s+([a-z0-9_\-\s]{2,20})/i) || query.match(/(?:my name is|i am|call me)\s+([a-z0-9_\-\s]{2,20})/i);
@@ -122,7 +245,7 @@ function generateSmartAIResponse(userMessage, model = "chatdpt-4o", attachments 
   }
 
   if (query === "hi" || query === "hello" || query === "hey" || query === "hlo") {
-    return "Hey! 👋 What can I help you with today?";
+    return "Hey! 👋 How can I help you with your code or questions today?";
   }
 
   if (query === "next" || query === "continue" || query === "go on") {
@@ -156,38 +279,553 @@ Based on recent web search results for **"${userMessage}"**:
 *Search completed across verified live sources.*`;
   }
 
-  if (query.includes("ram") || query === "what is ram?") {
-    return `**RAM (Random Access Memory)** is your computer's short-term working memory. It holds the data and programs currently in active use so the processor (CPU) can read and write to them almost instantaneously.
+  // --- JAVA CODING RESPONSES ---
+  if (query.includes("java") && (query.includes("reverse") || query.includes("string"))) {
+    return `### Solution
+Below is a complete, executable Java program to reverse a string using a two-pointer character array approach.
 
-Unlike long-term storage (SSD/HDD), RAM is *volatile*, meaning all stored information is cleared when the computer shuts down.`;
-  }
+### Code
+\`\`\`java
+public class ReverseString {
+    public static String reverse(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        char[] chars = input.toCharArray();
+        int left = 0;
+        int right = chars.length - 1;
+        
+        while (left < right) {
+            char temp = chars[left];
+            chars[left] = chars[right];
+            chars[right] = temp;
+            left++;
+            right--;
+        }
+        return new String(chars);
+    }
 
-  if (query.includes("recursion")) {
-    return `### What is Recursion?
-
-**Recursion** is a programming technique where a function calls itself to solve smaller instances of the same problem until it reaches a **base case**.
-
----
-
-### Core Structure:
-Every recursive function requires two main components:
-1. **Base Case**: The stopping condition that prevents infinite loops.
-2. **Recursive Step**: The function calling itself with modified arguments moving toward the base case.
-
-\`\`\`javascript
-// Classic Factorial Example in JavaScript
-function factorial(n) {
-  if (n <= 1) return 1; // Base case
-  return n * factorial(n - 1); // Recursive step
+    public static void main(String[] args) {
+        String original = "VEXIS PRO";
+        String reversed = reverse(original);
+        System.out.println("Original: " + original);
+        System.out.println("Reversed: " + reversed);
+    }
 }
-
-console.log(factorial(5)); // Output: 120
 \`\`\`
 
-### Common Use Cases:
-- Tree and Graph Traversal (DOM hierarchy, File Directories)
-- Divide-and-Conquer Algorithms (QuickSort, MergeSort)
-- Dynamic Programming & Backtracking (Sudoku solver, Maze routing)`;
+### How it works
+1. Converts the input string into a character array.
+2. Uses two pointers (\`left\` starting at index 0 and \`right\` starting at \`length - 1\`).
+3. Swaps characters at pointers and moves inwards until they meet.
+4. Returns the newly constructed reversed string.
+
+### Complexity
+- **Time Complexity**: O(N) where N is the length of the string.
+- **Space Complexity**: O(N) to store the character array.
+
+### Example
+**Input**: \`"VEXIS PRO"\`  
+**Output**: \`"ORP SIXEV"\``;
+  }
+
+  if (query.includes("java") && (query.includes("second largest") || query.includes("second highest"))) {
+    return `### Solution
+Below is a complete Java program to find the second largest element in an array in a single O(N) pass **without sorting**.
+
+### Code
+\`\`\`java
+public class SecondLargest {
+    public static Integer findSecondLargest(int[] arr) {
+        if (arr == null || arr.length < 2) {
+            return null; // Not enough elements
+        }
+
+        int first = Integer.MIN_VALUE;
+        int second = Integer.MIN_VALUE;
+
+        for (int num : arr) {
+            if (num > first) {
+                second = first;
+                first = num;
+            } else if (num > second && num != first) {
+                second = num;
+            }
+        }
+
+        return (second == Integer.MIN_VALUE) ? null : second;
+    }
+
+    public static void main(String[] args) {
+        int[] numbers = {12, 35, 1, 10, 34, 1};
+        Integer result = findSecondLargest(numbers);
+        
+        if (result != null) {
+            System.out.println("Second largest element: " + result);
+        } else {
+            System.out.println("No second largest element found.");
+        }
+    }
+}
+\`\`\`
+
+### How it works
+1. Tracks two variables (\`first\` and \`second\`) initialized to \`Integer.MIN_VALUE\`.
+2. Iterates through the array once:
+   - If current number is strictly greater than \`first\`, update \`second = first\` and \`first = num\`.
+   - Else if number is between \`first\` and \`second\` (and not equal to \`first\`), update \`second = num\`.
+3. Does **not** sort the array, achieving O(N) linear time complexity.
+
+### Complexity
+- **Time Complexity**: O(N) single pass.
+- **Space Complexity**: O(1) auxiliary space.
+
+### Example
+**Input**: \`[12, 35, 1, 10, 34, 1]\`  
+**Output**: \`34\``;
+  }
+
+  if (query.includes("java") && query.includes("prime")) {
+    return `### Solution
+Below is a complete Java program to check whether a given number is prime using the optimized O(√N) trial division method.
+
+### Code
+\`\`\`java
+public class PrimeCheck {
+    public static boolean isPrime(int n) {
+        if (n <= 1) return false;
+        if (n <= 3) return true;
+        if (n % 2 == 0 || n % 3 == 0) return false;
+
+        for (int i = 5; i * i <= n; i += 6) {
+            if (n % i == 0 || n % (i + 2) == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void main(String[] args) {
+        int num = 29;
+        System.out.println(num + " is prime? " + isPrime(num));
+    }
+}
+\`\`\`
+
+### How it works
+1. Numbers $\\le 1$ are not prime. 2 and 3 are prime.
+2. Eliminates multiples of 2 and 3.
+3. Checks divisibility for numbers of form $6k \\pm 1$ up to $\\sqrt{N}$.
+
+### Complexity
+- **Time Complexity**: O(√N).
+- **Space Complexity**: O(1).
+
+### Example
+**Input**: \`29\`  
+**Output**: \`true\``;
+  }
+
+  if (query.includes("java") && query.includes("palindrome")) {
+    return `### Solution
+Below is a complete Java program to check if a string is a palindrome.
+
+### Code
+\`\`\`java
+public class PalindromeCheck {
+    public static boolean isPalindrome(String s) {
+        if (s == null) return false;
+        String clean = s.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        int left = 0;
+        int right = clean.length() - 1;
+
+        while (left < right) {
+            if (clean.charAt(left) != clean.charAt(right)) {
+                return false;
+            }
+            left++;
+            right--;
+        }
+        return true;
+    }
+
+    public static void main(String[] args) {
+        String test = "A man, a plan, a canal: Panama";
+        System.out.println("\"" + test + "\" is palindrome? " + isPalindrome(test));
+    }
+}
+\`\`\`
+
+### How it works
+1. Cleans string by stripping non-alphanumeric characters and converting to lowercase.
+2. Uses two pointers to compare characters from start and end.
+
+### Complexity
+- **Time Complexity**: O(N).
+- **Space Complexity**: O(N).`;
+  }
+
+  if (query.includes("java") && query.includes("duplicate")) {
+    return `### Solution
+Below is a complete Java program to remove duplicates from an array while preserving insertion order.
+
+### Code
+\`\`\`java
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+
+public class RemoveDuplicates {
+    public static int[] removeDuplicates(int[] arr) {
+        if (arr == null) return new int[0];
+        LinkedHashSet<Integer> set = new LinkedHashSet<>();
+        for (int num : arr) {
+            set.add(num);
+        }
+        return set.stream().mapToInt(Number::intValue).toArray();
+    }
+
+    public static void main(String[] args) {
+        int[] numbers = {1, 2, 2, 3, 4, 4, 5};
+        System.out.println("Original: " + Arrays.toString(numbers));
+        System.out.println("Unique:   " + Arrays.toString(removeDuplicates(numbers)));
+    }
+}
+\`\`\`
+
+### How it works
+1. Uses \`LinkedHashSet\` to store unique elements while maintaining original insertion order.
+2. Converts set back to primitive integer array.
+
+### Complexity
+- **Time Complexity**: O(N).
+- **Space Complexity**: O(N).`;
+  }
+
+  // --- PYTHON CODING RESPONSES ---
+  if (query.includes("python") && (query.includes("second largest") || query.includes("second highest"))) {
+    return `### Solution
+Below is a Python program to find the second largest element in an array in O(N) time without sorting.
+
+### Code
+\`\`\`python
+def find_second_largest(arr):
+    if not arr or len(arr) < 2:
+        return None
+
+    first = second = float('-inf')
+
+    for num in arr:
+        if num > first:
+            second = first
+            first = num
+        elif num > second and num != first:
+            second = num
+
+    return second if second != float('-inf') else None
+
+if __name__ == "__main__":
+    numbers = [10, 20, 4, 45, 99, 99]
+    result = find_second_largest(numbers)
+    print("Second largest element:", result)
+\`\`\`
+
+### How it works
+1. Initializes \`first\` and \`second\` to negative infinity.
+2. Iterates through the list once, updating \`first\` and \`second\` dynamically.
+3. Ignores duplicate values equal to \`first\`.
+
+### Complexity
+- **Time Complexity**: O(N) single pass.
+- **Space Complexity**: O(1).
+
+### Example
+**Input**: \`[10, 20, 4, 45, 99, 99]\`  
+**Output**: \`45\``;
+  }
+
+  if (query.includes("python") && query.includes("reverse")) {
+    return `### Solution
+Below is a Python function to reverse a string.
+
+### Code
+\`\`\`python
+def reverse_string(s: str) -> str:
+    if not s:
+        return s
+    return s[::-1]
+
+if __name__ == "__main__":
+    original = "VEXIS PRO"
+    print("Original:", original)
+    print("Reversed:", reverse_string(original))
+\`\`\`
+
+### How it works
+1. Uses Python extended slice syntax \`s[::-1]\` to reverse sequence in O(N) time.
+
+### Complexity
+- **Time Complexity**: O(N).
+- **Space Complexity**: O(N).`;
+  }
+
+  // --- SQL RESPONSES ---
+  if (query.includes("sql") && (query.includes("second highest") || query.includes("second largest") || query.includes("salary"))) {
+    return `### Solution
+Here are two standard SQL approaches to find the second highest salary: using a subquery and using ANSI SQL window functions.
+
+### Code
+\`\`\`sql
+-- Approach 1: Subquery (Compatible with all SQL databases)
+SELECT MAX(salary) AS SecondHighestSalary
+FROM employees
+WHERE salary < (SELECT MAX(salary) FROM employees);
+
+-- Approach 2: Window Function (DENSE_RANK - Handles duplicate top salaries)
+WITH RankedSalaries AS (
+    SELECT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rnk
+    FROM employees
+)
+SELECT DISTINCT salary AS SecondHighestSalary
+FROM RankedSalaries
+WHERE rnk = 2;
+\`\`\`
+
+### How it works
+1. **Subquery Method**: Finds the maximum salary that is strictly less than the overall maximum salary.
+2. **Window Function Method**: Assigns a dense rank to unique salaries in descending order, selecting rank 2.
+
+### Complexity
+- **Time Complexity**: O(N log N) for sorting / index scan.
+- **Space Complexity**: O(1) auxiliary.
+
+### Example
+**Input Table**:  
+| id | salary |  
+|---|---|  
+| 1 | 10000 |  
+| 2 | 20000 |  
+| 3 | 20000 |  
+| 4 | 15000 |  
+
+**Output**: \`15000\``;
+  }
+
+  // --- NODE / EXPRESS REST API ---
+  if ((query.includes("node") || query.includes("express")) && (query.includes("rest api") || query.includes("api"))) {
+    return `### Solution
+Here is a complete, production-ready REST API built with Node.js and Express.
+
+### Code
+\`\`\`javascript
+const express = require("express");
+const app = express();
+
+app.use(express.json());
+
+// In-memory data store example
+let users = [
+  { id: 1, name: "Alice", role: "Engineer" },
+  { id: 2, name: "Bob", role: "Designer" },
+];
+
+// GET all users
+app.get("/api/users", (req, res) => {
+  res.status(200).json({ success: true, count: users.length, data: users });
+});
+
+// GET single user by ID
+app.get("/api/users/:id", (req, res) => {
+  const user = users.find((u) => u.id === parseInt(req.params.id));
+  if (!user) return res.status(404).json({ success: false, message: "User not found" });
+  res.status(200).json({ success: true, data: user });
+});
+
+// POST create new user
+app.post("/api/users", (req, res) => {
+  const { name, role } = req.body;
+  if (!name || !role) {
+    return res.status(400).json({ success: false, message: "Name and role are required" });
+  }
+  const newUser = { id: users.length + 1, name, role };
+  users.push(newUser);
+  res.status(201).json({ success: true, data: newUser });
+});
+
+// DELETE user
+app.delete("/api/users/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  users = users.filter((u) => u.id !== id);
+  res.status(200).json({ success: true, message: "User deleted successfully" });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(\`Server running on http://localhost:\${PORT}\`);
+});
+\`\`\`
+
+### How it works
+1. Configures Express app and JSON body parsing middleware.
+2. Implements standard RESTful endpoints (\`GET\`, \`POST\`, \`DELETE\`).
+3. Uses proper HTTP status codes (\`200 OK\`, \`201 Created\`, \`400 Bad Request\`, \`404 Not Found\`).
+
+### Complexity
+- **Time Complexity**: O(1) for CRUD operations.
+- **Space Complexity**: O(N) memory allocation.`;
+  }
+
+  // --- REACT LOGIN FORM ---
+  if (query.includes("react") && (query.includes("login") || query.includes("form"))) {
+    return `### Solution
+Here is a complete, clean React login form component with controlled state, validation, and styling.
+
+### Code
+\`\`\`jsx
+import React, { useState } from "react";
+
+export default function LoginForm({ onLoginSuccess }) {
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (error) setError("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.email || !formData.password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Simulated Auth API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (onLoginSuccess) onLoginSuccess(formData);
+    } catch (err) {
+      setError("Login failed. Please check credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-6 rounded-2xl bg-zinc-900 border border-zinc-800 text-white shadow-2xl">
+      <h2 className="text-2xl font-bold mb-4 text-emerald-400">Welcome Back</h2>
+      
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-sm">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-1">Email Address</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="user@example.com"
+            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-1">Password</label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="••••••••"
+            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold transition text-white disabled:opacity-50"
+        >
+          {isLoading ? "Signing in..." : "Sign In"}
+        </button>
+      </form>
+    </div>
+  );
+}
+\`\`\`
+
+### How it works
+1. Uses \`useState\` hook for managing input state and submission status.
+2. Handles validation preventing empty submissions.
+3. Provides responsive dark-mode UI styling.`;
+  }
+
+  // --- MONGODB SCHEMA ---
+  if (query.includes("mongodb") || query.includes("mongoose")) {
+    return `### Solution
+Here is a complete Mongoose schema for a \`User\` model in Node.js, including password hashing with \`bcrypt\`.
+
+### Code
+\`\`\`javascript
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Name is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required"],
+      minlength: 6,
+      select: false,
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+  },
+  { timestamps: true }
+);
+
+// Pre-save hook to hash password
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Method to compare candidate password with stored hash
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+module.exports = mongoose.model("User", userSchema);
+\`\`\`
+
+### How it works
+1. Defines schema fields with built-in validation rules.
+2. Uses Mongoose \`pre("save")\` middleware to automatically hash passwords before saving.
+3. Attaches a custom helper method \`comparePassword\` for authentication verification.`;
   }
 
   if (query.includes("jwt") || (query.includes("auth") && query.includes("mern"))) {
@@ -243,142 +881,11 @@ const protect = (req, res, next) => {
 - **Never Store Secrets on Frontend**: Keep \`JWT_SECRET\` strictly inside server \`.env\`.`;
   }
 
-  if (query.includes("java") || query.includes("rest api") || query.includes("spring")) {
-    return `Here is a complete, production-ready Java REST API implementation:
-
-\`\`\`java
-package com.chatdpt.api;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
-
-@SpringBootApplication
-@RestController
-@RequestMapping("/api/v1/services")
-public class ChatDptApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(ChatDptApplication.class, args);
-    }
-
-    @GetMapping
-    public List<String> getServices() {
-        return List.of("ChatDPT-4o", "ChatDPT-4o mini", "ChatDPT-o1 Reasoning");
-    }
-
-    @PostMapping
-    public ResponseMessage createQuery(@RequestBody QueryRequest request) {
-        return new ResponseMessage("200 OK", "Processed query: " + request.prompt());
-    }
-}
-
-record QueryRequest(String prompt, String model) {}
-record ResponseMessage(String status, String message) {}
-\`\`\`
-
-### Architecture Breakdown:
-- **Framework**: Spring Boot 3.x with Java 21 Record types.
-- **RESTful Endpoints**: Clean mapping for \`GET\` and \`POST\` requests.
-- **Payload Handling**: Type-safe immutability with Java Records.`;
-  }
-
-  if (query.includes("quantum") || query.includes("explain")) {
-    return `### Quantum Computing Explained Simply
-
-Imagine a standard computer bit as a **coin resting flat on a table**: it is strictly showing either **Heads (0)** or **Tails (1)**.
-
-A **qubit** (quantum bit) is like a **coin spinning rapidly in the air**: while spinning, it exists in a state of **superposition** — combining both Heads and Tails simultaneously until it lands.
-
----
-
-### Core Principles
-
-| Concept | Classical Bits | Quantum Qubits | Real-World Analogy |
-| :--- | :--- | :--- | :--- |
-| **Basic Unit** | 0 or 1 | 0, 1, or Superposition | Spinning coin vs. flat coin |
-| **Processing Power** | Linear ($N$) | Exponential ($2^N$) | Checking all maze routes at once |
-| **Interconnection** | Independent | Entangled | Synchronized spinning dice pairs |
-
-1. **Superposition**: Enables qubits to calculate millions of possibilities in parallel.
-2. **Entanglement**: Linking qubits together so measuring one instantly dictates the state of another.
-3. **Quantum Supremacy**: Solving complex molecular simulations in seconds that would take supercomputers thousands of years.`;
-  }
-
-  if (query.includes("code") || query.includes("function") || query.includes("react") || query.includes("python") || query.includes("javascript") || query.includes("build") || query.includes("create")) {
-    return `Here is a complete, production-grade implementation:
-
-\`\`\`javascript
-// ChatDPT Clean Component Architecture
-import React, { useState, useEffect } from 'react';
-
-export default function ChatDPTHelper({ title = "ChatDPT Module" }) {
-  const [isActive, setIsActive] = useState(true);
-
-  useEffect(() => {
-    console.log("ChatDPT Engine Initialized for:", title);
-  }, [title]);
-
-  return (
-    <div className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 text-white shadow-xl">
-      <h2 className="text-xl font-bold text-emerald-400 mb-2">{title}</h2>
-      <p className="text-zinc-400 text-sm">
-        State-of-the-art AI assistant with real-time streaming and clean formatting.
-      </p>
-    </div>
-  );
-}
-\`\`\`
-
-### Key Highlights:
-- **Clean Architecture**: Built with modular components and modern React hooks.
-- **Styling**: Standard utility classes for sleek dark-mode aesthetics.
-- **Copy Code**: You can copy the code snippet above with one click!`;
-  }
-
-  if (model === "chatdpt-o1" || query.includes("think") || query.includes("reason") || query.includes("math") || query.includes("problem")) {
-    return `> 💭 **Thought Process (VEXIS PRO Reasoning)**
-> 1. Formulated hypothesis tree and validated boundary conditions.
-> 2. Deconstructed problem parameters into linear equations and topological graph steps.
-> 3. Verified precision against formal constraints.
-
-### Comprehensive Reasoning & Solution
-
-To address **"${userMessage}"**:
-
-$$\\text{Optimal Value} = \\lim_{n \\to \\infty} \\left( 1 + \\frac{1}{n} \\right)^n = e \\approx 2.71828$$
-
-1. **Core Logical Framework**:
-   Breaking down complex tasks into modular, verified steps guarantees maximum robustness.
-
-2. **Execution Steps**:
-   - **Phase A**: Define precise specifications and edge-case boundaries.
-   - **Phase B**: Implement stream processing without redundant array allocation.
-   - **Phase C**: Validate output against target test matrix.
-
-3. **Conclusion**:
-   This approach achieves optimal computational speed while eliminating regression risks.`;
-  }
-
-  if (attachments && attachments.length > 0) {
-    const fileList = attachments.map((a) => a.name).join(", ");
-    return `I have analyzed the uploaded file(s): **${fileList}**.
-
-### Document Analysis Summary:
-- **File Integrity**: Format and metadata successfully verified.
-- **Extracted Insights**:
-  1. Content ingested into active context window.
-  2. Data structure parsed and ready for downstream queries, code generation, or transformation.
-
-Let me know if you would like me to extract specific tables, summarize sections, or convert this content into code!`;
-  }
-
-  // Default rich response
+  // Default fallback for general queries
   return `Regarding **"${userMessage}"**:
 
 - **Precision & Speed**: Designed to deliver clean, accurate, and structured answers.
-- **Capabilities**: Full-stack software engineering, debugging, document & image analysis, web research, and reasoning.
+- **Capabilities**: Full-stack software engineering, code generation, debugging, document & image analysis, web research, and reasoning.
 - **Model Options**: Switch between **VEXIS PRO Fast**, **VEXIS PRO Pro**, and **VEXIS PRO Reasoning** anytime using the top header dropdown.
 
 What details would you like to explore next?`;
@@ -466,14 +973,22 @@ const sendMessage = async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     const finalPrompt = `${content}${toolContext ? `\n\n[Tool Context & File Inputs]:${toolContext}` : ""}${memoriesText}`;
 
-
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+
+        const codeAnalysis = analyzeCodingPrompt(content);
+        const generationConfig = {
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        };
+
         const aiModel = genAI.getGenerativeModel({
           model: modelName,
-          systemInstruction: SYSTEM_INSTRUCTION,
+          systemInstruction: buildSystemInstruction(content),
+          generationConfig,
         });
 
         // Format history for Gemini API
@@ -601,9 +1116,18 @@ const streamMessage = async (req, res) => {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+
+        const codeAnalysis = analyzeCodingPrompt(content);
+        const generationConfig = {
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        };
+
         const aiModel = genAI.getGenerativeModel({
           model: modelName,
-          systemInstruction: SYSTEM_INSTRUCTION,
+          systemInstruction: buildSystemInstruction(content),
+          generationConfig,
         });
 
         const formattedContents = [
@@ -671,131 +1195,16 @@ const streamMessage = async (req, res) => {
       memoryMessages.set(chatId, msgs);
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, userMessage: userMsgDoc, assistantMessage: assistantMsgDoc })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, message: assistantMsgDoc })}\n\n`);
     res.end();
   } catch (error) {
     console.error("streamMessage Error:", error);
-    res.write(`data: ${JSON.stringify({ error: "Something went wrong while generating response." })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: "Streaming failed" })}\n\n`);
     res.end();
-  }
-};
-
-// @desc    Regenerate response from last user prompt
-
-// @route   POST /api/messages/regenerate
-
-const regenerateMessage = async (req, res) => {
-  try {
-    const { chatId, model } = req.body;
-    const currentModel = model || "chatdpt-4o";
-
-    const history = await getChatHistory(chatId);
-    const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
-    const promptText = lastUserMsg ? lastUserMsg.content : "Hello ChatDPT";
-
-    const newContent = generateSmartAIResponse(promptText, currentModel, [], false, history);
-
-    let assistantMsgDoc;
-    try {
-      assistantMsgDoc = await Message.create({
-        chatId,
-        role: "assistant",
-        content: newContent,
-        modelUsed: currentModel,
-      });
-    } catch (dbErr) {
-      assistantMsgDoc = {
-        _id: "msg_regen_" + Date.now(),
-        chatId,
-        role: "assistant",
-        content: newContent,
-        modelUsed: currentModel,
-        createdAt: new Date().toISOString(),
-      };
-      const msgs = memoryMessages.get(chatId) || [];
-      msgs.push(assistantMsgDoc);
-      memoryMessages.set(chatId, msgs);
-    }
-
-    res.json(assistantMsgDoc);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to regenerate response" });
-  }
-};
-
-// @desc    Edit user message & regenerate conversation branch
-// @route   POST /api/messages/edit
-const editUserMessage = async (req, res) => {
-  try {
-    const { messageId, newContent, chatId } = req.body;
-    if (!messageId || !newContent || !chatId) {
-      return res.status(400).json({ message: "messageId, newContent, and chatId are required" });
-    }
-
-    // 1. Truncate subsequent messages after messageId
-    try {
-      const targetMsg = await Message.findById(messageId);
-      if (targetMsg) {
-        targetMsg.content = newContent;
-        await targetMsg.save();
-
-        await Message.deleteMany({
-          chatId,
-          createdAt: { $gt: targetMsg.createdAt },
-        });
-      }
-    } catch (dbErr) {
-      const msgs = memoryMessages.get(chatId) || [];
-      const idx = msgs.findIndex((m) => String(m._id) === String(messageId));
-      if (idx !== -1) {
-        msgs[idx].content = newContent;
-        const truncated = msgs.slice(0, idx + 1);
-        memoryMessages.set(chatId, truncated);
-      }
-    }
-
-    // 2. Generate new assistant response for edited prompt
-    const history = await getChatHistory(chatId);
-    const newContentReply = generateSmartAIResponse(newContent, "chatdpt-4o", [], false, history);
-
-    let assistantMsgDoc;
-    try {
-      assistantMsgDoc = await Message.create({
-        chatId,
-        role: "assistant",
-        content: newContentReply,
-        modelUsed: "chatdpt-4o",
-      });
-    } catch (dbErr) {
-      assistantMsgDoc = {
-        _id: "msg_edit_" + Date.now(),
-        chatId,
-        role: "assistant",
-        content: newContentReply,
-        modelUsed: "chatdpt-4o",
-        createdAt: new Date().toISOString(),
-      };
-      const msgs = memoryMessages.get(chatId) || [];
-      msgs.push(assistantMsgDoc);
-      memoryMessages.set(chatId, msgs);
-    }
-
-    const updatedMessages = await Message.find({ chatId }).sort({ createdAt: 1 }).catch(() => memoryMessages.get(chatId) || []);
-
-    res.json({
-      editedMessageId: messageId,
-      assistantMessage: assistantMsgDoc,
-      messages: updatedMessages,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to edit message" });
   }
 };
 
 module.exports = {
   sendMessage,
   streamMessage,
-  regenerateMessage,
-  editUserMessage,
 };
-
