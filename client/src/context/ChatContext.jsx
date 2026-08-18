@@ -30,6 +30,7 @@ export function ChatProvider({ children }) {
 
   const isSendingRef = useRef(false);
   const streamIntervalRef = useRef(null);
+  const skipFetchRef = useRef(false);
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("chatdpt-theme") || "dark";
@@ -69,6 +70,10 @@ export function ChatProvider({ children }) {
   }, [user]);
 
   useEffect(() => {
+    if (skipFetchRef.current) {
+      skipFetchRef.current = false;
+      return;
+    }
     if (activeChatId) {
       fetchChatMessages(activeChatId);
     } else {
@@ -276,6 +281,7 @@ export function ChatProvider({ children }) {
 
     try {
       if (!targetChatId) {
+        skipFetchRef.current = true;
         const newChat = await createNewChat(
           text.length > 30 ? text.substring(0, 30) + "..." : text,
           selectedModel
@@ -321,6 +327,7 @@ export function ChatProvider({ children }) {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
       let accumulatedText = "";
       let finalUserMsg = null;
       let finalAssistantMsg = null;
@@ -329,13 +336,15 @@ export function ChatProvider({ children }) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunkString = decoder.decode(value, { stream: true });
-        const lines = chunkString.split("\n\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data: ")) {
             try {
-              const data = JSON.parse(line.replace("data: ", ""));
+              const data = JSON.parse(trimmed.replace(/^data:\s*/, ""));
               if (data.error) {
                 toast.error(data.error);
               } else if (data.chunk) {
@@ -346,7 +355,7 @@ export function ChatProvider({ children }) {
                 finalAssistantMsg = data.assistantMessage;
               }
             } catch (pErr) {
-              // Parse fallback
+              console.warn("SSE Parse notice:", pErr.message);
             }
           }
         }
