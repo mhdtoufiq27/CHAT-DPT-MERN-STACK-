@@ -388,7 +388,7 @@ export function ChatProvider({ children }) {
         console.log("Request aborted by user");
       } else {
         console.error("Message send error:", err);
-        toast.error("Something went wrong while generating the response. Please try again.");
+        toast.error("VEXIS PRO couldn't connect to Gemini. Please try again.");
       }
     } finally {
       setIsStreaming(false);
