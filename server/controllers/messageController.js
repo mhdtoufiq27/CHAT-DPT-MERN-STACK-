@@ -1353,8 +1353,8 @@ const streamMessage = async (req, res) => {
 
   try {
     const { chatId, content, model, attachments, webSearch } = req.body;
-    if (!chatId || !content) {
-      res.write(`data: ${JSON.stringify({ error: "chatId and content are required" })}\n\n`);
+    if (!chatId || !content || !content.trim()) {
+      res.write(`data: ${JSON.stringify({ error: "Please enter a message." })}\n\n`);
       return res.end();
     }
 

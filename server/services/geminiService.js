@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 /**
- * Clean Gemini Backend Service for VEXIS PRO
+ * VEXIS PRO — Gemini AI Backend Service
  * Primary & ONLY AI Engine for VEXIS PRO Normal Chat
  */
 class GeminiService {
@@ -24,8 +24,11 @@ class GeminiService {
   async generateResponse({ content, model, history, systemInstruction, finalPrompt, fallbackFn }) {
     const apiKey = process.env.GEMINI_API_KEY;
 
+    console.log("[Chat] User message received");
+    console.log("[Chat] Provider: Gemini");
+
     if (apiKey && apiKey.trim() !== "") {
-      console.log("[Gemini] Request received");
+      console.log("[Chat] Gemini request sent");
       const genAI = new GoogleGenerativeAI(apiKey);
       const targetModel = this.getGeminiModelName(model);
 
@@ -46,12 +49,16 @@ class GeminiService {
       }
 
       const contents = [...cleanedHistory, { role: "user", parts: [{ text: finalPrompt || content }] }];
+      const activeInstruction =
+        systemInstruction ||
+        "You are VEXIS PRO, an intelligent, precise, helpful AI assistant. Always understand the user's actual question and answer directly, accurately, and naturally. Strictly follow all requested formatting constraints (e.g., 'give only code', 'explain in 3 lines'). Maintain conversation context across turns. Ensure code snippets are clean, executable, and in the requested language.";
 
+      let lastErr = null;
       for (const mName of modelsToTry) {
         try {
           const aiModel = genAI.getGenerativeModel({
             model: mName,
-            systemInstruction: systemInstruction || "You are VEXIS PRO, an intelligent, helpful, accurate AI assistant.",
+            systemInstruction: activeInstruction,
             generationConfig: {
               temperature: 0.7,
               topP: 0.95,
@@ -63,10 +70,25 @@ class GeminiService {
           const response = await result.response;
           const text = response.text();
           if (text && text.trim() !== "") {
-            console.log(`[Gemini] Gemini response received from model '${mName}'`);
+            console.log("[Chat] Gemini response received");
+            console.log(`[Chat] Response length: ${text.length}`);
             return text;
           }
         } catch (err) {
+          lastErr = err;
+          const status = err.status || err.statusCode;
+          if (status === 429 || err.message?.includes("429") || err.message?.includes("quota")) {
+            console.warn("[Gemini] Rate limit / quota reached:", err.message);
+            if (typeof fallbackFn !== "function") {
+              throw new Error("VEXIS PRO is temporarily unable to process the request. Please try again shortly.");
+            }
+          }
+          if (status === 401 || status === 403 || err.message?.includes("API key")) {
+            console.warn("[Gemini] Authentication error:", err.message);
+            if (typeof fallbackFn !== "function") {
+              throw new Error("VEXIS PRO couldn't connect to Gemini. Please check API key configuration.");
+            }
+          }
           console.warn(`[Gemini] Model '${mName}' notice:`, err.message);
         }
       }
@@ -75,9 +97,13 @@ class GeminiService {
     }
 
     if (typeof fallbackFn === "function") {
-      return fallbackFn(finalPrompt || content, model, [], false, history);
+      const fallbackText = fallbackFn(finalPrompt || content, model, [], false, history);
+      console.log("[Chat] Response delivered via natural response engine");
+      console.log(`[Chat] Response length: ${fallbackText.length}`);
+      return fallbackText;
     }
-    throw new Error("GEMINI_KEY_MISSING");
+
+    throw new Error("VEXIS PRO couldn't connect to Gemini. Please try again.");
   }
 
   /**
