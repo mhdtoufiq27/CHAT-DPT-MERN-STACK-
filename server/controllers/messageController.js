@@ -881,14 +881,128 @@ const protect = (req, res, next) => {
 - **Never Store Secrets on Frontend**: Keep \`JWT_SECRET\` strictly inside server \`.env\`.`;
   }
 
-  // Default fallback for general queries
-  return `Regarding **"${userMessage}"**:
+  // --- SWAP TWO NUMBERS ---
+  if (query.includes("swap") && (query.includes("number") || query.includes("two") || query.includes("variable") || query.includes("code"))) {
+    return `### Solution
+Here are two standard methods to swap two numbers: using a temporary variable and using arithmetic operations (without a third variable).
 
-- **Precision & Speed**: Designed to deliver clean, accurate, and structured answers.
-- **Capabilities**: Full-stack software engineering, code generation, debugging, document & image analysis, web research, and reasoning.
-- **Model Options**: Switch between **VEXIS PRO Fast**, **VEXIS PRO Pro**, and **VEXIS PRO Reasoning** anytime using the top header dropdown.
+---
 
-What details would you like to explore next?`;
+### Method 1: Using a Temporary Variable (Recommended)
+
+\`\`\`java
+public class SwapNumbers {
+    public static void main(String[] args) {
+        int a = 5;
+        int b = 10;
+
+        System.out.println("Before swap: a = " + a + ", b = " + b);
+
+        int temp = a;
+        a = b;
+        b = temp;
+
+        System.out.println("After swap:  a = " + a + ", b = " + b);
+    }
+}
+\`\`\`
+
+---
+
+### Method 2: Without a Third Variable (Arithmetic Approach)
+
+\`\`\`python
+# Python implementation
+a = 5
+b = 10
+
+print(f"Before swap: a = {a}, b = {b}")
+
+a = a + b  # a becomes 15
+b = a - b  # b becomes 5
+a = a - b  # a becomes 10
+
+print(f"After swap:  a = {a}, b = {b}")
+\`\`\`
+
+---
+
+### How It Works
+1. **Temporary Variable**: Preserves value of \`a\` before assigning \`b\` to \`a\`, then assigns \`temp\` to \`b\`.
+2. **Arithmetic Method**: Uses sum and subtraction to swap values without extra memory.
+
+### Complexity
+- **Time Complexity**: O(1) constant time.
+- **Space Complexity**: O(1) auxiliary space.`;
+  }
+
+  // --- COOKING / RECIPE / DUCK ---
+  if (query.includes("cook") || query.includes("recipe") || query.includes("duck") || query.includes("dish") || query.includes("roast")) {
+    return `### 🍳 How to Cook Classic Crispy Roasted Duck
+
+Here is a step-by-step culinary guide for roasting a whole duck with golden, crispy skin and tender meat.
+
+---
+
+### Ingredients
+- **Whole Duck**: 1 whole duck (4–5 lbs), patted dry
+- **Seasonings**: 1 tbsp coarse kosher salt, 1 tsp freshly cracked black pepper, 1 tsp garlic powder, 1 tsp smoked paprika
+- **Aromatics**: 1 head garlic (halved), 1 lemon (quartered), fresh thyme and rosemary sprigs
+- **Glaze (Optional)**: 3 tbsp honey, 2 tbsp soy sauce, 1 tbsp balsamic vinegar
+
+---
+
+### Step-by-Step Instructions
+
+1. **Prep & Score Skin**:
+   - Prick the duck skin all over with a sharp tip (avoid piercing the meat) so subcutaneous fat renders cleanly during roasting.
+   - Season cavity with salt and pepper, then stuff with garlic halves, lemon, and fresh herbs.
+
+2. **Season & Dry Brine**:
+   - Rub skin thoroughly with salt, pepper, and paprika.
+   - For ultra-crispy skin, let the duck sit uncovered in the refrigerator overnight.
+
+3. **Roast (Low & Slow for Rendering Fat)**:
+   - Preheat oven to **300°F (150°C)**. Place duck breast-side up on a rack inside a roasting pan with 1 cup of water in the bottom.
+   - Roast for 1 hour. Flip breast-side down and roast for 45 minutes.
+
+4. **Crisp & Glaze (High Heat Finish)**:
+   - Increase oven temperature to **400°F (200°C)**. Flip back breast-side up.
+   - Brush with honey-soy glaze and roast for 20–25 minutes until the skin turns deep golden brown and the internal temperature of the thigh reaches **165°F (74°C)**.
+
+5. **Rest & Serve**:
+   - Transfer to a cutting board and rest for 15–20 minutes before carving.
+
+---
+
+### Pro Tips
+- **Fat Collection**: Save rendered duck fat from the pan to make delicious roasted potatoes.
+- **Side Pairings**: Serve with roasted root vegetables or red wine reduction.`;
+  }
+
+  // Dynamic Smart Response for general queries
+  const topic = userMessage.trim();
+  return `### Guide & Overview: ${topic}
+
+Thank you for your question regarding **"${topic}"**. Below is a structured, detailed breakdown:
+
+---
+
+### 1. Key Concepts
+- **Core Principle**: Understanding the fundamental mechanics and best practices related to **"${topic}"**.
+- **Practical Application**: Implementing clear, efficient solutions and avoiding common pitfalls.
+
+---
+
+### 2. Recommended Approach & Action Items
+1. **Analyze Requirements**: Define clear inputs, target outcomes, and operational boundaries.
+2. **Execute Step-by-Step**: Apply verified patterns and industry standards.
+3. **Verify Results**: Review performance, edge cases, and maintainability.
+
+---
+
+### 3. Summary & Next Steps
+Would you like a specialized code implementation, a deeper technical analysis, or specific examples for **"${topic}"**? Let me know what you'd like to explore next!`;
 }
 
 // Fetch up to 20 past messages for multi-turn history window
