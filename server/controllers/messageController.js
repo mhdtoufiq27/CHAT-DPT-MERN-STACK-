@@ -980,6 +980,78 @@ Here is a step-by-step culinary guide for roasting a whole duck with golden, cri
 - **Side Pairings**: Serve with roasted root vegetables or red wine reduction.`;
   }
 
+  // --- FACTORIAL / FIBONACCI / ALGORITHMS ---
+  if (query.includes("factorial")) {
+    return `### Solution
+Below is a complete Java and Python implementation to calculate the factorial of a non-negative integer using both iterative and recursive approaches.
+
+---
+
+### Python Code (Iterative & Recursive)
+\`\`\`python
+def factorial_iterative(n: int) -> int:
+    if n < 0:
+        raise ValueError("Factorial is not defined for negative numbers.")
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+
+def factorial_recursive(n: int) -> int:
+    if n < 0:
+        raise ValueError("Factorial is not defined for negative numbers.")
+    if n <= 1:
+        return 1
+    return n * factorial_recursive(n - 1)
+
+if __name__ == "__main__":
+    number = 5
+    print(f"Iterative Factorial({number}):", factorial_iterative(number))
+    print(f"Recursive Factorial({number}):", factorial_recursive(number))
+\`\`\`
+
+---
+
+### Complexity
+- **Time Complexity**: O(N) linear time.
+- **Space Complexity**: O(1) for iterative, O(N) call stack for recursive.`;
+  }
+
+  if (query.includes("fibonacci")) {
+    return `### Solution
+Below is an O(N) iterative implementation to generate the Fibonacci sequence up to N terms in Java.
+
+---
+
+### Code
+\`\`\`java
+public class FibonacciSeries {
+    public static void printFibonacci(int n) {
+        if (n <= 0) return;
+        long a = 0, b = 1;
+        System.out.print("Fibonacci Sequence (" + n + " terms): ");
+        for (int i = 1; i <= n; i++) {
+            System.out.print(a + (i == n ? "" : ", "));
+            long next = a + b;
+            a = b;
+            b = next;
+        }
+        System.out.println();
+    }
+
+    public static void main(String[] args) {
+        printFibonacci(10);
+    }
+}
+\`\`\`
+
+---
+
+### Complexity
+- **Time Complexity**: O(N).
+- **Space Complexity**: O(1).`;
+  }
+
   // Dynamic Smart Response for general queries
   const topic = userMessage.trim();
   return `### Guide & Overview: ${topic}
@@ -1003,6 +1075,43 @@ Thank you for your question regarding **"${topic}"**. Below is a structured, det
 
 ### 3. Summary & Next Steps
 Would you like a specialized code implementation, a deeper technical analysis, or specific examples for **"${topic}"**? Let me know what you'd like to explore next!`;
+}
+
+// Multi-model fallback execution helper to bypass single-model 429 rate limits
+async function callGeminiWithCascade(genAI, primaryModel, promptText, formattedContents) {
+  const codeAnalysis = analyzeCodingPrompt(promptText);
+  const generationConfig = {
+    temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+    topP: 0.95,
+    maxOutputTokens: 4096,
+  };
+  const systemInstruction = buildSystemInstruction(promptText);
+
+  const isReasoning = primaryModel.includes("o1") || primaryModel.includes("pro");
+  const modelsToTry = isReasoning
+    ? ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-pro-latest", "gemini-2.5-flash", "gemini-1.5-flash"]
+    : ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-1.5-pro"];
+
+  let lastErr = null;
+  for (const modelName of modelsToTry) {
+    try {
+      const aiModel = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction,
+        generationConfig,
+      });
+      const result = await aiModel.generateContent({ contents: formattedContents });
+      const response = await result.response;
+      const text = response.text();
+      if (text && text.trim() !== "") {
+        return text;
+      }
+    } catch (err) {
+      lastErr = err;
+      console.warn(`Gemini model '${modelName}' notice:`, err.message);
+    }
+  }
+  throw lastErr || new Error("All Gemini model endpoints failed");
 }
 
 // Fetch up to 20 past messages for multi-turn history window
@@ -1090,20 +1199,6 @@ const sendMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
-
-        const codeAnalysis = analyzeCodingPrompt(content);
-        const generationConfig = {
-          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
-          topP: 0.95,
-          maxOutputTokens: 4096,
-        };
-
-        const aiModel = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: buildSystemInstruction(content),
-          generationConfig,
-        });
 
         // Format history cleanly for Gemini API to ensure strictly alternating roles
         const cleanedHistory = [];
@@ -1121,11 +1216,9 @@ const sendMessage = async (req, res) => {
           { role: "user", parts: [{ text: finalPrompt }] },
         ];
 
-        const result = await aiModel.generateContent({ contents: formattedContents });
-        const response = await result.response;
-        assistantReplyContent = response.text();
+        assistantReplyContent = await callGeminiWithCascade(genAI, currentModel, content, formattedContents);
       } catch (geminiError) {
-        console.warn("Gemini API warning, using smart AI fallback engine:", geminiError.message);
+        console.warn("All Gemini models exhausted, using smart AI fallback engine:", geminiError.message);
         assistantReplyContent = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
       }
     } else {
@@ -1236,20 +1329,6 @@ const streamMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
-
-        const codeAnalysis = analyzeCodingPrompt(content);
-        const generationConfig = {
-          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
-          topP: 0.95,
-          maxOutputTokens: 4096,
-        };
-
-        const aiModel = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: buildSystemInstruction(content),
-          generationConfig,
-        });
 
         // Clean history to ensure strict alternating user/model roles
         const cleanedHistory = [];
@@ -1267,17 +1346,8 @@ const streamMessage = async (req, res) => {
           { role: "user", parts: [{ text: finalPrompt }] },
         ];
 
-        let replyText = "";
-        try {
-          const result = await aiModel.generateContent({ contents: formattedContents });
-          const response = await result.response;
-          replyText = response.text();
-        } catch (apiErr) {
-          console.warn("Gemini API error, using smart fallback:", apiErr.message);
-          replyText = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
-        }
-
-        fullReply = replyText;
+        fullReply = await callGeminiWithCascade(genAI, currentModel, content, formattedContents);
+        
         const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
         for (let i = 0; i < fullReply.length; i += chunkSize) {
           if (isAborted) break;
@@ -1286,7 +1356,7 @@ const streamMessage = async (req, res) => {
           await new Promise((r) => setTimeout(r, 15));
         }
       } catch (outerErr) {
-        console.warn("Outer Gemini error, using smart fallback:", outerErr.message);
+        console.warn("All Gemini model endpoints exhausted, using smart fallback:", outerErr.message);
         fullReply = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
         const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
         for (let i = 0; i < fullReply.length; i += chunkSize) {
