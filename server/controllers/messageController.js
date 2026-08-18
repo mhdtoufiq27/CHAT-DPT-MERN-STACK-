@@ -1,3 +1,4 @@
+const { OpenAI } = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
@@ -1114,6 +1115,13 @@ async function callGeminiWithCascade(genAI, primaryModel, promptText, formattedC
   throw lastErr || new Error("All Gemini model endpoints failed");
 }
 
+// Helper to map VEXIS PRO model ids to OpenAI model names
+function getOpenAIModelName(currentModel) {
+  if (currentModel && currentModel.includes("o1")) return "o1-mini";
+  if (currentModel && currentModel.includes("mini")) return "gpt-4o-mini";
+  return "gpt-4o";
+}
+
 // Fetch up to 20 past messages for multi-turn history window
 async function getChatHistory(chatId) {
   try {
@@ -1193,14 +1201,58 @@ const sendMessage = async (req, res) => {
 
     // 3. Generate AI completion with multi-turn history, toolContext & memoriesText
     let assistantReplyContent = "";
-    const apiKey = process.env.GEMINI_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
     const finalPrompt = `${content}${toolContext ? `\n\n[Tool Context & File Inputs]:${toolContext}` : ""}${memoriesText}`;
 
-    if (apiKey && apiKey.trim() !== "") {
+    if (openaiKey && openaiKey.trim() !== "") {
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
+        const openai = new OpenAI({ apiKey: openaiKey });
+        const targetModel = getOpenAIModelName(currentModel);
+        const codeAnalysis = analyzeCodingPrompt(content);
 
-        // Format history cleanly for Gemini API to ensure strictly alternating roles
+        const formattedMessages = [
+          { role: "system", content: buildSystemInstruction(content) },
+          ...history.map((h) => ({
+            role: h.role === "model" ? "assistant" : h.role,
+            content: h.content,
+          })),
+          { role: "user", content: finalPrompt },
+        ];
+
+        const completion = await openai.chat.completions.create({
+          model: targetModel,
+          messages: formattedMessages,
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+        });
+
+        assistantReplyContent = completion.choices[0]?.message?.content || "";
+      } catch (openAiErr) {
+        console.warn("OpenAI API notice, trying Gemini or fallback:", openAiErr.message);
+        if (geminiKey && geminiKey.trim() !== "") {
+          try {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const cleanedHistory = [];
+            let expectedRole = "user";
+            for (const h of history) {
+              const role = h.role === "assistant" ? "model" : "user";
+              if (role === expectedRole && h.content && h.content.trim() !== "") {
+                cleanedHistory.push({ role, parts: [{ text: h.content }] });
+                expectedRole = role === "user" ? "model" : "user";
+              }
+            }
+            const formattedContents = [...cleanedHistory, { role: "user", parts: [{ text: finalPrompt }] }];
+            assistantReplyContent = await callGeminiWithCascade(genAI, currentModel, content, formattedContents);
+          } catch (geminiErr) {
+            assistantReplyContent = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
+          }
+        } else {
+          assistantReplyContent = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
+        }
+      }
+    } else if (geminiKey && geminiKey.trim() !== "") {
+      try {
+        const genAI = new GoogleGenerativeAI(geminiKey);
         const cleanedHistory = [];
         let expectedRole = "user";
         for (const h of history) {
@@ -1210,15 +1262,9 @@ const sendMessage = async (req, res) => {
             expectedRole = role === "user" ? "model" : "user";
           }
         }
-
-        const formattedContents = [
-          ...cleanedHistory,
-          { role: "user", parts: [{ text: finalPrompt }] },
-        ];
-
+        const formattedContents = [...cleanedHistory, { role: "user", parts: [{ text: finalPrompt }] }];
         assistantReplyContent = await callGeminiWithCascade(genAI, currentModel, content, formattedContents);
       } catch (geminiError) {
-        console.warn("All Gemini models exhausted, using smart AI fallback engine:", geminiError.message);
         assistantReplyContent = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
       }
     } else {
@@ -1324,13 +1370,86 @@ const streamMessage = async (req, res) => {
     const finalPrompt = `${content}${toolContext ? `\n\n[Tool Context & File Inputs]:${toolContext}` : ""}${memoriesText}`;
 
     let fullReply = "";
-    const apiKey = process.env.GEMINI_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
-    if (apiKey && apiKey.trim() !== "") {
+    if (openaiKey && openaiKey.trim() !== "") {
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
+        const openai = new OpenAI({ apiKey: openaiKey });
+        const targetModel = getOpenAIModelName(currentModel);
+        const codeAnalysis = analyzeCodingPrompt(content);
 
-        // Clean history to ensure strict alternating user/model roles
+        const formattedMessages = [
+          { role: "system", content: buildSystemInstruction(content) },
+          ...history.map((h) => ({
+            role: h.role === "model" ? "assistant" : h.role,
+            content: h.content,
+          })),
+          { role: "user", content: finalPrompt },
+        ];
+
+        const stream = await openai.chat.completions.create({
+          model: targetModel,
+          messages: formattedMessages,
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+          stream: true,
+        });
+
+        for await (const chunk of stream) {
+          if (isAborted) break;
+          const chunkText = chunk.choices[0]?.delta?.content || "";
+          if (chunkText) {
+            fullReply += chunkText;
+            res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+          }
+        }
+      } catch (openAiErr) {
+        console.warn("OpenAI stream notice, falling back to Gemini or smart fallback:", openAiErr.message);
+        if (geminiKey && geminiKey.trim() !== "") {
+          try {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const cleanedHistory = [];
+            let expectedRole = "user";
+            for (const h of history) {
+              const role = h.role === "assistant" ? "model" : "user";
+              if (role === expectedRole && h.content && h.content.trim() !== "") {
+                cleanedHistory.push({ role, parts: [{ text: h.content }] });
+                expectedRole = role === "user" ? "model" : "user";
+              }
+            }
+            const formattedContents = [...cleanedHistory, { role: "user", parts: [{ text: finalPrompt }] }];
+            fullReply = await callGeminiWithCascade(genAI, currentModel, content, formattedContents);
+            const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
+            for (let i = 0; i < fullReply.length; i += chunkSize) {
+              if (isAborted) break;
+              const part = fullReply.substring(i, i + chunkSize);
+              res.write(`data: ${JSON.stringify({ chunk: part })}\n\n`);
+              await new Promise((r) => setTimeout(r, 15));
+            }
+          } catch (gErr) {
+            fullReply = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
+            const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
+            for (let i = 0; i < fullReply.length; i += chunkSize) {
+              if (isAborted) break;
+              const part = fullReply.substring(i, i + chunkSize);
+              res.write(`data: ${JSON.stringify({ chunk: part })}\n\n`);
+              await new Promise((r) => setTimeout(r, 15));
+            }
+          }
+        } else {
+          fullReply = generateSmartAIResponse(finalPrompt, currentModel, attachments, webSearch, history);
+          const chunkSize = Math.max(1, Math.floor(fullReply.length / 25));
+          for (let i = 0; i < fullReply.length; i += chunkSize) {
+            if (isAborted) break;
+            const part = fullReply.substring(i, i + chunkSize);
+            res.write(`data: ${JSON.stringify({ chunk: part })}\n\n`);
+            await new Promise((r) => setTimeout(r, 15));
+          }
+        }
+      }
+    } else if (geminiKey && geminiKey.trim() !== "") {
+      try {
+        const genAI = new GoogleGenerativeAI(geminiKey);
         const cleanedHistory = [];
         let expectedRole = "user";
         for (const h of history) {
