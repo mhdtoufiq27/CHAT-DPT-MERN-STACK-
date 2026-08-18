@@ -1204,7 +1204,174 @@ const streamMessage = async (req, res) => {
   }
 };
 
+// @desc    Regenerate AI response for a message
+// @route   POST /api/messages/regenerate
+const regenerateMessage = async (req, res) => {
+  try {
+    const { chatId, messageId, model } = req.body;
+    if (!chatId) {
+      return res.status(400).json({ message: "chatId is required" });
+    }
+
+    const currentModel = model || "chatdpt-4o";
+    const history = await getChatHistory(chatId);
+    const lastUserMsg = history.filter((h) => h.role === "user").slice(-1)[0];
+
+    const promptText = lastUserMsg ? lastUserMsg.content : "Hello VEXIS PRO";
+
+    let assistantReplyContent = "";
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (apiKey && apiKey.trim() !== "") {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+
+        const codeAnalysis = analyzeCodingPrompt(promptText);
+        const generationConfig = {
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        };
+
+        const aiModel = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: buildSystemInstruction(promptText),
+          generationConfig,
+        });
+
+        const formattedContents = [
+          ...history.map((h) => ({
+            role: h.role === "assistant" ? "model" : h.role,
+            parts: [{ text: h.content }],
+          })),
+        ];
+
+        const result = await aiModel.generateContent({ contents: formattedContents });
+        const response = await result.response;
+        assistantReplyContent = response.text();
+      } catch (err) {
+        assistantReplyContent = generateSmartAIResponse(promptText, currentModel, [], false, history);
+      }
+    } else {
+      assistantReplyContent = generateSmartAIResponse(promptText, currentModel, [], false, history);
+    }
+
+    let assistantMsgDoc;
+    if (messageId) {
+      try {
+        assistantMsgDoc = await Message.findByIdAndUpdate(
+          messageId,
+          { content: assistantReplyContent, modelUsed: currentModel },
+          { new: true }
+        );
+      } catch (err) {
+        assistantMsgDoc = { _id: messageId, chatId, role: "assistant", content: assistantReplyContent, modelUsed: currentModel };
+      }
+    } else {
+      try {
+        assistantMsgDoc = await Message.create({
+          chatId,
+          role: "assistant",
+          content: assistantReplyContent,
+          modelUsed: currentModel,
+        });
+      } catch (err) {
+        assistantMsgDoc = { _id: "msg_" + Date.now(), chatId, role: "assistant", content: assistantReplyContent, modelUsed: currentModel };
+      }
+    }
+
+    return res.json({ assistantMessage: assistantMsgDoc });
+  } catch (error) {
+    console.error("regenerateMessage Error:", error);
+    res.status(500).json({ message: "Failed to regenerate response" });
+  }
+};
+
+// @desc    Edit user message & generate branch reply
+// @route   POST /api/messages/edit
+const editUserMessage = async (req, res) => {
+  try {
+    const { messageId, newContent, chatId, model } = req.body;
+    if (!newContent) {
+      return res.status(400).json({ message: "newContent is required" });
+    }
+
+    const currentModel = model || "chatdpt-4o";
+    let updatedUserMsg;
+    if (messageId) {
+      try {
+        updatedUserMsg = await Message.findByIdAndUpdate(messageId, { content: newContent }, { new: true });
+      } catch (err) {
+        updatedUserMsg = { _id: messageId, chatId, role: "user", content: newContent };
+      }
+    }
+
+    const history = await getChatHistory(chatId);
+    let newReplyContent = "";
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (apiKey && apiKey.trim() !== "") {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const modelName = currentModel.includes("o1") ? "gemini-1.5-pro" : "gemini-1.5-flash";
+
+        const codeAnalysis = analyzeCodingPrompt(newContent);
+        const generationConfig = {
+          temperature: codeAnalysis.isCodeRequest ? 0.15 : 0.7,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        };
+
+        const aiModel = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: buildSystemInstruction(newContent),
+          generationConfig,
+        });
+
+        const formattedContents = [
+          ...history.map((h) => ({
+            role: h.role === "assistant" ? "model" : h.role,
+            parts: [{ text: h.content }],
+          })),
+          { role: "user", parts: [{ text: newContent }] },
+        ];
+
+        const result = await aiModel.generateContent({ contents: formattedContents });
+        const response = await result.response;
+        newReplyContent = response.text();
+      } catch (err) {
+        newReplyContent = generateSmartAIResponse(newContent, currentModel, [], false, history);
+      }
+    } else {
+      newReplyContent = generateSmartAIResponse(newContent, currentModel, [], false, history);
+    }
+
+    let assistantMsgDoc;
+    try {
+      assistantMsgDoc = await Message.create({
+        chatId,
+        role: "assistant",
+        content: newReplyContent,
+        modelUsed: currentModel,
+      });
+    } catch (err) {
+      assistantMsgDoc = { _id: "msg_" + Date.now(), chatId, role: "assistant", content: newReplyContent, modelUsed: currentModel };
+    }
+
+    return res.json({
+      userMessage: updatedUserMsg,
+      assistantMessage: assistantMsgDoc,
+    });
+  } catch (error) {
+    console.error("editUserMessage Error:", error);
+    res.status(500).json({ message: "Failed to edit message" });
+  }
+};
+
 module.exports = {
   sendMessage,
   streamMessage,
+  regenerateMessage,
+  editUserMessage,
 };
