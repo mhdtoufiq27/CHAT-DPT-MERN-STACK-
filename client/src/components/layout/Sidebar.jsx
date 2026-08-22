@@ -24,6 +24,7 @@ import {
   Target,
   TrendingUp,
   Volume2,
+  Compass,
 } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
 import { useAuth } from "../../context/AuthContext";
@@ -46,6 +47,9 @@ export default function Sidebar() {
     setIsInterviewOpen,
     setIsInterviewHistoryOpen,
     setIsIntroCoachOpen,
+    isCareerNavigatorOpen,
+    setIsCareerNavigatorOpen,
+    openCareerNavigator,
     theme,
     toggleTheme,
     exportChat,
@@ -162,8 +166,19 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Search Input & AI Mock Interview Buttons */}
+        {/* Search Input & Career / Interview Buttons */}
         <div className="px-3 pt-3 space-y-1.5">
+          <button
+            onClick={() => openCareerNavigator()}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-950 via-[#1e2922] to-[#1f1f1f] border border-emerald-500/40 hover:border-emerald-500/70 text-xs font-extrabold text-emerald-300 hover:text-emerald-200 transition shadow-sm group"
+          >
+            <Compass size={15} className="text-emerald-400 group-hover:rotate-45 transition-transform" />
+            <span>Tech Career Navigator</span>
+            <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/30">
+              52+
+            </span>
+          </button>
+
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={() => setIsInterviewOpen(true)}

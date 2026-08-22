@@ -17,7 +17,11 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 const server = app.listen(PORT, () => {
-  console.log(`\n🚀 VEXIS PRO Backend Server running at http://localhost:${PORT}`);
+  const hasKey = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0);
+  console.log(`\n[SERVER] Backend started on port ${PORT}`);
+  console.log(`[SERVER] Gemini key loaded: ${hasKey ? "YES" : "NO"}`);
+  console.log(`[SERVER] Chat routes registered: POST /api/messages, POST /api/messages/stream`);
+  console.log(`🚀 VEXIS PRO Backend Server running at http://localhost:${PORT}`);
   console.log(`💬 API ready at http://localhost:${PORT}/api/health\n`);
 });
 

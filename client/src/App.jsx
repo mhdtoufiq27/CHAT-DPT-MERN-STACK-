@@ -13,6 +13,7 @@ import ConfirmModal from "./components/modals/ConfirmModal";
 import InterviewModal from "./components/interview/InterviewModal";
 import InterviewHistoryModal from "./components/interview/InterviewHistoryModal";
 import IntroCoachModal from "./components/interview/IntroCoachModal";
+import CareerNavigatorModal from "./components/career/CareerNavigatorModal";
 import { Sparkles, ArrowDown } from "lucide-react";
 
 function MainChatArea() {
@@ -30,6 +31,9 @@ function MainChatArea() {
     setIsInterviewHistoryOpen,
     isIntroCoachOpen,
     setIsIntroCoachOpen,
+    isCareerNavigatorOpen,
+    setIsCareerNavigatorOpen,
+    activeCareerRoleId,
   } = useChat();
 
   const scrollContainerRef = useRef(null);
@@ -175,6 +179,11 @@ function MainChatArea() {
       <IntroCoachModal
         isOpen={isIntroCoachOpen}
         onClose={() => setIsIntroCoachOpen(false)}
+      />
+      <CareerNavigatorModal
+        isOpen={isCareerNavigatorOpen}
+        onClose={() => setIsCareerNavigatorOpen(false)}
+        initialRoleId={activeCareerRoleId}
       />
     </div>
   );

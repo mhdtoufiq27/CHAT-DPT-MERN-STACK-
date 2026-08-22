@@ -1177,8 +1177,8 @@ async function callGeminiWithCascade(genAI, primaryModel, promptText, formattedC
 
   const isReasoning = primaryModel.includes("o1") || primaryModel.includes("pro");
   const modelsToTry = isReasoning
-    ? ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-pro-latest", "gemini-2.5-flash", "gemini-1.5-flash"]
-    : ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-2.5-pro", "gemini-1.5-pro"];
+    ? ["gemini-3.1-pro-preview", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"]
+    : ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
   let lastErr = null;
   for (const modelName of modelsToTry) {
@@ -1442,12 +1442,19 @@ const streamMessage = async (req, res) => {
       memoryMessages.set(chatId, msgs);
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, userMessage: userMsgDoc, assistantMessage: assistantMsgDoc, message: assistantMsgDoc })}\n\n`);
-    res.end();
+    const plainUserMsg = userMsgDoc && userMsgDoc.toObject ? userMsgDoc.toObject() : userMsgDoc;
+    const plainAssistantMsg = assistantMsgDoc && assistantMsgDoc.toObject ? assistantMsgDoc.toObject() : assistantMsgDoc;
+
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ done: true, userMessage: plainUserMsg, assistantMessage: plainAssistantMsg, message: plainAssistantMsg })}\n\n`);
+      res.end();
+    }
   } catch (error) {
-    console.error("streamMessage Error:", error);
-    res.write(`data: ${JSON.stringify({ error: "Streaming failed" })}\n\n`);
-    res.end();
+    console.error("streamMessage Error:", error.message || error);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: error.message || "Streaming failed" })}\n\n`);
+      res.end();
+    }
   }
 };
 
@@ -1472,7 +1479,7 @@ const regenerateMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-3.1-pro-preview" : (process.env.GEMINI_MODEL || "gemini-3.6-flash");
 
         const codeAnalysis = analyzeCodingPrompt(promptText);
         const generationConfig = {
@@ -1561,7 +1568,7 @@ const editUserMessage = async (req, res) => {
     if (apiKey && apiKey.trim() !== "") {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = currentModel.includes("o1") ? "gemini-2.5-pro" : "gemini-2.5-flash";
+        const modelName = currentModel.includes("o1") ? "gemini-3.1-pro-preview" : (process.env.GEMINI_MODEL || "gemini-3.6-flash");
 
         const codeAnalysis = analyzeCodingPrompt(newContent);
         const generationConfig = {

@@ -22,6 +22,8 @@ export function ChatProvider({ children }) {
   const [isInterviewOpen, setIsInterviewOpen] = useState(false);
   const [isInterviewHistoryOpen, setIsInterviewHistoryOpen] = useState(false);
   const [isIntroCoachOpen, setIsIntroCoachOpen] = useState(false);
+  const [isCareerNavigatorOpen, setIsCareerNavigatorOpen] = useState(false);
+  const [activeCareerRoleId, setActiveCareerRoleId] = useState(null);
   const [confirmModalData, setConfirmModalData] = useState(null);
 
   const [attachments, setAttachments] = useState([]);
@@ -623,6 +625,14 @@ export function ChatProvider({ children }) {
         setIsInterviewHistoryOpen,
         isIntroCoachOpen,
         setIsIntroCoachOpen,
+        isCareerNavigatorOpen,
+        setIsCareerNavigatorOpen,
+        activeCareerRoleId,
+        setActiveCareerRoleId,
+        openCareerNavigator: (roleId = null) => {
+          setActiveCareerRoleId(roleId);
+          setIsCareerNavigatorOpen(true);
+        },
         confirmModalData,
         setConfirmModalData,
         theme,

@@ -1,9 +1,9 @@
 import React from "react";
-import { Code, BookOpen, Sparkles, FileSearch, Layers } from "lucide-react";
+import { Code, BookOpen, Sparkles, FileSearch, Layers, Compass, ArrowRight } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
 
 export default function WelcomeState() {
-  const { sendMessage } = useChat();
+  const { sendMessage, openCareerNavigator } = useChat();
 
   const suggestionCards = [
     {
@@ -50,9 +50,41 @@ export default function WelcomeState() {
       <h1 className="text-2xl sm:text-3xl font-bold text-zinc-100 dark:text-zinc-100 light:text-zinc-900 mb-2 tracking-tight">
         What can I help with today?
       </h1>
-      <p className="text-xs sm:text-sm text-zinc-400 dark:text-zinc-400 light:text-zinc-600 mb-8 max-w-md leading-relaxed">
-        Your adaptive AI workspace. Ask questions, write code, analyze data, or practice interviews.
+      <p className="text-xs sm:text-sm text-zinc-400 dark:text-zinc-400 light:text-zinc-600 mb-6 max-w-md leading-relaxed">
+        Your adaptive AI workspace. Ask questions, write code, analyze data, or explore technical IT careers.
       </p>
+
+      {/* Featured Career Navigator Banner */}
+      <div className="w-full mb-4">
+        <button
+          onClick={() => openCareerNavigator()}
+          className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-[#18231c] to-[#1e1e1e] border border-emerald-500/30 hover:border-emerald-500/60 transition-all duration-200 group flex items-center justify-between gap-4 text-left shadow-sm hover:shadow-md"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0 group-hover:scale-105 transition">
+              <Compass size={20} className="animate-spin-slow" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white group-hover:text-emerald-300 transition">
+                  Technical IT Career Navigator
+                </span>
+                <span className="text-[9px] font-mono font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  52+ Roles & Roadmaps
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-1">
+                Explore 9 career families, 9-stage learning roadmaps, prerequisites & tiered projects for CS/IT students.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 shrink-0 group-hover:translate-x-1 transition-transform">
+            <span className="hidden sm:inline">Explore</span>
+            <ArrowRight size={14} />
+          </div>
+        </button>
+      </div>
 
       {/* Suggestion Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">

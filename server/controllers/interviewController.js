@@ -126,7 +126,7 @@ const startInterview = async (req, res) => {
 
     if (genAI) {
       try {
-        const modelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const modelInstance = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-3.6-flash" });
         const prompt = `You are a senior recruitment interviewer with a "${personality}" interviewer style conducting a ${mode} mode interview for role: "${targetRole}" (${expLevel} level).
 Job Description Context: "${jobDescriptionText ? jobDescriptionText.substring(0, 300) : "None"}"
 Candidate Resume Context: "${resumeText ? resumeText.substring(0, 300) : "None"}"
@@ -556,7 +556,7 @@ const submitAnswer = async (req, res) => {
 
     if (genAI && !skipped && candidateAnswer.length > 5) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-3.6-flash" });
         const evalPrompt = `You are a senior hiring interviewer with a "${session.personality || "Professional"}" style conducting a ${sessionMode} mode interview for role "${session.role}".
 Round: "${currentQ.roundName}" (${currentQ.category}).
 Question: "${currentQ.question}"
@@ -683,7 +683,7 @@ Return valid JSON only.`;
       nextQuestionText = `SQL & Database Round (${currentRound.roundName}): Refer to the database schema provided and write an SQL query to solve the request below.`;
     } else if (genAI) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-3.6-flash" });
         const existingQuestions = session.questions.map((q) => q.question).join(" | ");
 
         const nextQPrompt = `You are a senior hiring interviewer with a "${session.personality || "Professional"}" style conducting Round: "${currentRound ? currentRound.roundName : "Technical"}" (${targetCategory}) for role "${session.role}".

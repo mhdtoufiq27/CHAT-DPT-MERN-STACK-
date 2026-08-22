@@ -105,6 +105,28 @@ const introductionSessionSchema = new mongoose.Schema(
       },
     ],
     strengths: [String],
+    whatWasGood: [String],
+    whatIsMissing: [String],
+    mustImprove: [String],
+    specificFeedback: String,
+    suggestedStructure: String,
+    evaluationStatus: {
+      type: String,
+      default: "Complete",
+    },
+    evaluationNote: String,
+    rubricBreakdown: {
+      structure: { score: Number, evidence: String, status: String },
+      clarity: { score: Number, evidence: String, status: String },
+      education: { score: Number, evidence: String, status: String },
+      technicalSkills: { score: Number, evidence: String, status: String },
+      projectsExperience: { score: Number, evidence: String, status: String },
+      strengthsValue: { score: Number, evidence: String, status: String },
+      careerGoal: { score: Number, evidence: String, status: String },
+      roleMatch: { score: Number, evidence: String, status: String },
+      communicationQuality: { score: Number, evidence: String, status: String },
+      overallImpact: { score: Number, evidence: String, status: String },
+    },
     improvedVersion: String,
     sentenceFeedback: [
       {

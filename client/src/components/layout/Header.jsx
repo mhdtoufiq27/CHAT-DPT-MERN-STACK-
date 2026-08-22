@@ -13,6 +13,7 @@ import {
   Moon,
   Target,
   Volume2,
+  Compass,
 } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
 import { useAuth } from "../../context/AuthContext";
@@ -33,6 +34,7 @@ export default function Header() {
     shareChat,
     setIsInterviewOpen,
     setIsIntroCoachOpen,
+    openCareerNavigator,
   } = useChat();
 
 
@@ -191,6 +193,15 @@ export default function Header() {
           ) : (
             <Moon size={15} className="text-indigo-400" />
           )}
+        </button>
+
+        <button
+          onClick={() => openCareerNavigator()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-teal-400 font-bold bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-xl transition shadow-xs"
+          title="Open Tech Career Navigator"
+        >
+          <Compass size={14} />
+          <span className="hidden md:inline">Career Navigator</span>
         </button>
 
         <button

@@ -12,6 +12,7 @@ const memoryRoutes = require("./routes/memoryRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const interviewRoutes = require("./routes/interviewRoutes");
 const introRoutes = require("./routes/introRoutes");
+const careerRoutes = require("./routes/careerRoutes");
 const rateLimiter = require("./middleware/rateLimitMiddleware");
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/memories", memoryRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/introductions", introRoutes);
+app.use("/api/careers", careerRoutes);
 
 // Health Check
 app.get("/api/health", (req, res) => {

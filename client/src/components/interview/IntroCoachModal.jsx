@@ -149,6 +149,8 @@ export default function IntroCoachModal({ isOpen, onClose }) {
       recognition.onerror = (err) => {
         if (err.error === "not-allowed") {
           toast.error("Microphone access denied. Grant microphone permissions.");
+        } else if (err.error === "no-speech" || err.error === "audio-capture") {
+          toast.error("Your speech could not be reliably understood. Please try recording again.");
         }
       };
 
@@ -524,12 +526,18 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                 </div>
 
                 <div className="text-4xl font-extrabold text-white tracking-tight">
-                  {scores.overallScore || 8.1} / 10
+                  {typeof scores.overallScore === "number" ? scores.overallScore : 0} / 10
                 </div>
 
                 <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide">
                   Target Role: {resultSession.role} ({resultSession.experience})
                 </div>
+
+                {resultSession.evaluationStatus && (
+                  <div className="inline-block px-3 py-1 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-300 text-[11px] font-semibold">
+                    Status: <span className={scores.overallScore >= 7 ? "text-emerald-400 font-bold" : scores.overallScore >= 4 ? "text-amber-400 font-bold" : "text-red-400 font-bold"}>{resultSession.evaluationStatus}</span>
+                  </div>
+                )}
 
                 {/* Achievements Unlocked Badges */}
                 {resultSession.achievementsEarned && resultSession.achievementsEarned.length > 0 && (
@@ -562,7 +570,7 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                   onClick={() => {
                     setActiveTab("record");
                     resetRecording();
-                    toast.success("Practice mode initialized! Avoid filler words in your next attempt.");
+                    toast.success("Practice mode initialized! Focus on your target improvement.");
                   }}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition shrink-0 shadow-md flex items-center gap-1.5"
                 >
@@ -571,11 +579,84 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                 </button>
               </div>
 
+              {/* WHAT WAS GOOD vs WHAT IS MISSING */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* WHAT WAS GOOD */}
+                <div className="p-4 rounded-2xl bg-[#212121] border border-emerald-500/30 space-y-2">
+                  <div className="font-bold text-emerald-400 uppercase text-[11px] flex items-center gap-1.5">
+                    <Sparkles size={14} />
+                    WHAT YOU DID WELL (EVIDENCE)
+                  </div>
+                  {resultSession.whatWasGood && resultSession.whatWasGood.length > 0 ? (
+                    <ul className="space-y-1.5 text-zinc-300">
+                      {resultSession.whatWasGood.map((goodItem, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="text-emerald-400 font-bold">✓</span>
+                          <span>{goodItem}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-zinc-500 italic text-[11px]">No demonstrated content elements found to highlight.</p>
+                  )}
+                </div>
+
+                {/* WHAT IS MISSING */}
+                <div className="p-4 rounded-2xl bg-[#212121] border border-amber-500/30 space-y-2">
+                  <div className="font-bold text-amber-400 uppercase text-[11px] flex items-center gap-1.5">
+                    <Target size={14} />
+                    WHAT IS MISSING
+                  </div>
+                  {resultSession.whatIsMissing && resultSession.whatIsMissing.length > 0 ? (
+                    <ul className="space-y-1.5 text-zinc-300">
+                      {resultSession.whatIsMissing.map((missingItem, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="text-amber-400 font-bold">✗</span>
+                          <span>{missingItem}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-emerald-400 text-[11px]">All core introduction sections covered!</p>
+                  )}
+                </div>
+              </div>
+
+              {/* MUST IMPROVE (1, 2, 3 ACTIONABLE STEPS) */}
+              {resultSession.mustImprove && resultSession.mustImprove.length > 0 && (
+                <div className="p-4 rounded-2xl bg-[#212121] border border-purple-500/30 text-xs space-y-2">
+                  <div className="font-bold text-purple-300 uppercase text-[11px] flex items-center gap-1.5">
+                    <Zap size={14} className="text-purple-400" />
+                    MUST IMPROVE (PRIORITY ACTION STEPS)
+                  </div>
+                  <div className="space-y-1.5">
+                    {resultSession.mustImprove.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-zinc-200">
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-600/30 text-purple-300 font-bold font-mono text-[10px] shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="text-[11px] leading-relaxed">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PERSONALIZED FEEDBACK */}
+              {resultSession.specificFeedback && (
+                <div className="p-4 rounded-2xl bg-[#212121] border border-zinc-700/60 text-xs space-y-1.5">
+                  <div className="font-bold text-white uppercase text-[11px]">COACH DETAILED FEEDBACK</div>
+                  <p className="text-zinc-300 text-[11px] leading-relaxed font-mono">
+                    {resultSession.specificFeedback}
+                  </p>
+                </div>
+              )}
+
               {/* BEFORE vs AFTER & WHAT CHANGED */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
                   <Sparkles size={15} />
-                  Before vs After Comparison & What Changed
+                  Before vs After Comparison & Suggested Structure
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -587,7 +668,7 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-[#212121] border border-emerald-500/20 space-y-2">
-                    <div className="font-bold text-emerald-400 uppercase text-[11px]">AFTER (Example Improved Version)</div>
+                    <div className="font-bold text-emerald-400 uppercase text-[11px]">AFTER (Grounded Improvement Model)</div>
                     <div className="text-zinc-200 font-mono text-[11px] leading-relaxed">
                       "{resultSession.improvedVersion}"
                     </div>
@@ -607,30 +688,55 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                 )}
               </div>
 
-              {/* 8 Category Scorecard Grid */}
+              {/* 10 Category Performance Scorecard */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  8-Category Performance Scorecard
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+                  <span>10-Point Evidence-Based Rubric Scorecard</span>
+                  <span className="text-[11px] text-purple-400 font-mono font-normal">Score: {typeof scores.overallScore === "number" ? scores.overallScore : 0} / 10</span>
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {Object.entries(scores).map(([catKey, val]) => {
-                    if (catKey === "overallScore") return null;
-                    return (
-                      <div key={catKey} className="p-3 rounded-xl bg-[#212121] border border-zinc-800 space-y-1">
-                        <div className="flex justify-between font-semibold capitalize text-zinc-300">
-                          <span>{catKey.replace(/([A-Z])/g, " $1")}</span>
-                          <span className="font-mono text-purple-400">{val} / 10</span>
+                {resultSession.rubricBreakdown ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {Object.entries(resultSession.rubricBreakdown).map(([critKey, item]) => {
+                      const label = critKey.replace(/([A-Z])/g, " $1");
+                      const sc = item?.score ?? 0;
+                      return (
+                        <div key={critKey} className="p-3.5 rounded-xl bg-[#212121] border border-zinc-800 space-y-1.5">
+                          <div className="flex justify-between font-semibold capitalize text-zinc-200">
+                            <span>{label}</span>
+                            <span className="font-mono text-purple-400">{sc} / 1.0</span>
+                          </div>
+                          <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-purple-500 h-full transition-all" style={{ width: `${sc * 100}%` }} />
+                          </div>
+                          <p className="text-[10px] text-zinc-400 font-mono truncate" title={item?.evidence}>
+                            {item?.evidence || "Not demonstrated"}
+                          </p>
                         </div>
-                        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-purple-500 h-full" style={{ width: `${(val / 10) * 100}%` }} />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {Object.entries(scores).map(([catKey, val]) => {
+                      if (catKey === "overallScore") return null;
+                      return (
+                        <div key={catKey} className="p-3 rounded-xl bg-[#212121] border border-zinc-800 space-y-1">
+                          <div className="flex justify-between font-semibold capitalize text-zinc-300">
+                            <span>{catKey.replace(/([A-Z])/g, " $1")}</span>
+                            <span className="font-mono text-purple-400">{val} / 10</span>
+                          </div>
+                          <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-purple-500 h-full" style={{ width: `${(val / 10) * 100}%` }} />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
+
           )}
 
           {/* MODE 2: STEP-BY-STEP GUIDED BUILDER */}
@@ -904,25 +1010,37 @@ export default function IntroCoachModal({ isOpen, onClose }) {
                     </div>
 
                     <p className="text-[11px] text-purple-200 italic">
-                      "Your introduction currently appears well prepared for practice interviews."
+                      {dashboardData.latestScore >= 7
+                        ? "\"Your introduction currently appears well prepared for technical and HR interviews.\""
+                        : dashboardData.latestScore >= 4
+                        ? "\"Your introduction covers basic points but needs more project and technical details.\""
+                        : "\"Your introduction is incomplete. Deliver a complete 30-60 second response with education, skills, and projects.\""}
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
                       <div className="p-2 rounded-xl bg-[#1e1e1e] border border-zinc-800 flex justify-between">
                         <span className="text-zinc-400">Role Match</span>
-                        <span className="text-white font-bold">88%</span>
+                        <span className="text-white font-bold">
+                          {dashboardData.latestSession?.scores?.roleMatch !== undefined ? Math.round(dashboardData.latestSession.scores.roleMatch * 10) : 0}%
+                        </span>
                       </div>
                       <div className="p-2 rounded-xl bg-[#1e1e1e] border border-zinc-800 flex justify-between">
                         <span className="text-zinc-400">Structure</span>
-                        <span className="text-white font-bold">84%</span>
+                        <span className="text-white font-bold">
+                          {dashboardData.latestSession?.scores?.structure !== undefined ? Math.round(dashboardData.latestSession.scores.structure * 10) : 0}%
+                        </span>
                       </div>
                       <div className="p-2 rounded-xl bg-[#1e1e1e] border border-zinc-800 flex justify-between">
                         <span className="text-zinc-400">Fluency</span>
-                        <span className="text-white font-bold">76%</span>
+                        <span className="text-white font-bold">
+                          {dashboardData.latestSession?.scores?.fluency !== undefined ? Math.round(dashboardData.latestSession.scores.fluency * 10) : 0}%
+                        </span>
                       </div>
                       <div className="p-2 rounded-xl bg-[#1e1e1e] border border-zinc-800 flex justify-between">
                         <span className="text-zinc-400">Clarity</span>
-                        <span className="text-white font-bold">91%</span>
+                        <span className="text-white font-bold">
+                          {dashboardData.latestSession?.scores?.clarity !== undefined ? Math.round(dashboardData.latestSession.scores.clarity * 10) : 0}%
+                        </span>
                       </div>
                     </div>
                   </div>
